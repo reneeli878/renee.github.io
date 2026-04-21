@@ -980,8 +980,7 @@ async function updateGpsDisplay(position, actionLabel) {
       longitude,
       accuracy: Math.round(accuracy),
       distance: Math.round(distance),
-      inRange: true,
-      time: new Date().toISOString()
+      inRange: true
     };
 
     const result = await sendAttendanceToGAS(payload);
