@@ -18,12 +18,9 @@
       --warning: #f59e0b;
       --danger: #ef4444;
       --shadow-md: 0 12px 24px rgba(25, 55, 90, 0.08);
-      --shadow-sm: 0 6px 14px rgba(25, 55, 90, 0.05);
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -34,10 +31,7 @@
         linear-gradient(180deg, #f8fbfe 0%, var(--bg) 60%, #eef5fb 100%);
     }
 
-    a {
-      text-decoration: none;
-      color: inherit;
-    }
+    a { text-decoration: none; color: inherit; }
 
     .container {
       width: min(1120px, calc(100% - 28px));
@@ -106,9 +100,7 @@
       transition: transform 0.18s ease;
     }
 
-    .btn:hover {
-      transform: translateY(-2px);
-    }
+    .btn:hover { transform: translateY(-2px); }
 
     .btn-primary {
       color: white;
@@ -116,9 +108,7 @@
       box-shadow: 0 10px 18px rgba(60, 130, 191, 0.22);
     }
 
-    .hero {
-      padding: 16px 0 10px;
-    }
+    .hero { padding: 16px 0 10px; }
 
     .top-actions {
       display: grid;
@@ -128,7 +118,6 @@
     }
 
     .top-action-card,
-    .hero-panel,
     .dashboard-panel,
     .panel,
     .quick-link-card {
@@ -168,58 +157,35 @@
     .quick-link-card h3 {
       margin: 0;
       font-size: 0.92rem;
+      text-align: center;
     }
 
     .top-action-card span,
     .quick-link-card p {
       display: block;
       margin-top: 6px;
+      text-align: center;
       color: var(--muted);
       font-size: 0.8rem;
       line-height: 1.4;
     }
 
-    .hero-layout {
+    .desktop-main-grid {
       display: grid;
       grid-template-columns: 0.95fr 1.05fr;
       gap: 12px;
-      align-items: stretch;
+      align-items: start;
     }
 
-    .hero-panel,
+    .secondary-grid {
+      margin-top: 12px;
+    }
+
     .dashboard-panel,
     .panel,
     .quick-link-card {
       border-radius: 20px;
       padding: 16px;
-    }
-
-    .eyebrow {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: var(--primary-soft);
-      border: 1px solid rgba(60, 130, 191, 0.14);
-      color: var(--primary-dark);
-      font-size: 0.82rem;
-      font-weight: 800;
-      margin-bottom: 10px;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: clamp(1.6rem, 3vw, 2.3rem);
-      line-height: 1.1;
-      letter-spacing: -0.04em;
-    }
-
-    .hero-desc {
-      margin: 8px 0 0;
-      color: var(--muted);
-      line-height: 1.65;
-      font-size: 0.88rem;
     }
 
     .dashboard-top {
@@ -275,7 +241,6 @@
     .clock-box .label,
     .employee-meta span,
     .status-item span,
-    .panel-title small,
     .clock-date,
     .gps-message {
       color: var(--muted);
@@ -291,9 +256,7 @@
       line-height: 1;
     }
 
-    .clock-date {
-      margin-top: 6px;
-    }
+    .clock-date { margin-top: 6px; }
 
     .employee-card {
       display: grid;
@@ -327,7 +290,7 @@
 
     .mini-stats {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 10px;
       margin-top: 10px;
     }
@@ -369,9 +332,7 @@
       margin-bottom: 8px;
     }
 
-    .gps-card-title strong {
-      font-size: 0.88rem;
-    }
+    .gps-card-title strong { font-size: 0.88rem; }
 
     .gps-dot {
       width: 10px;
@@ -420,15 +381,7 @@
       word-break: break-all;
     }
 
-    .section {
-      padding: 10px 0 18px;
-    }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 0.9fr 1.1fr;
-      gap: 12px;
-    }
+    .section { padding: 0 0 18px; }
 
     .panel-title {
       display: flex;
@@ -468,33 +421,21 @@
     }
 
     @media (max-width: 920px) {
-      .container {
-        width: min(100% - 22px, 1120px);
-      }
+      .container { width: min(100% - 22px, 1120px); }
 
       .top-actions,
-      .links-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
+      .links-grid { grid-template-columns: repeat(2, 1fr); }
 
-      .hero-layout,
-      .grid-2 {
-        grid-template-columns: 1fr;
-      }
+      .desktop-main-grid,
+      .secondary-grid { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 640px) {
-      body {
-        background: #f6f9fc;
-      }
+      body { background: #f6f9fc; }
 
-      .container {
-        width: min(100% - 16px, 1120px);
-      }
+      .container { width: min(100% - 16px, 1120px); }
 
-      .nav {
-        min-height: 60px;
-      }
+      .nav { min-height: 60px; }
 
       .brand-badge {
         width: 36px;
@@ -502,13 +443,8 @@
         border-radius: 12px;
       }
 
-      .brand-text strong {
-        font-size: 0.92rem;
-      }
-
-      .brand-text small {
-        display: none;
-      }
+      .brand-text strong { font-size: 0.92rem; }
+      .brand-text small { display: none; }
 
       .btn {
         min-height: 38px;
@@ -516,9 +452,7 @@
         font-size: 0.86rem;
       }
 
-      .hero {
-        padding: 10px 0 8px;
-      }
+      .hero { padding: 10px 0 8px; }
 
       .top-actions {
         grid-template-columns: repeat(2, 1fr);
@@ -547,68 +481,37 @@
       }
 
       .top-action-card h4,
-      .quick-link-card h3 {
-        font-size: 0.94rem;
-      }
+      .quick-link-card h3 { font-size: 0.94rem; }
 
       .top-action-card span,
       .quick-link-card p,
       .clock-box .label,
       .employee-meta span,
       .status-item span,
-      .panel-title small,
       .clock-date,
       .gps-message,
       .gps-item small {
         font-size: 0.78rem;
       }
 
-      .hero-layout,
-      .grid-2 {
+      .desktop-main-grid,
+      .secondary-grid {
         display: flex;
         flex-direction: column;
         gap: 10px;
       }
 
-      .hero-panel {
-        display: none;
-      }
+      .dashboard-panel,
+      .panel { padding: 14px; }
 
-      .dashboard-panel {
-        order: 1;
-        padding: 14px;
-      }
-
-      .grid-2 > .panel {
-        order: 2;
-        padding: 14px;
-      }
-
-      .section:last-of-type .panel {
-        padding: 14px;
-      }
-
-      .dashboard-top h2,
-      .panel-title h3 {
-        font-size: 1rem;
-      }
-
-      .clock-box {
-        padding: 14px;
-      }
-
-      .clock-time {
-        font-size: 2rem;
-      }
+      .clock-time { font-size: 2rem; }
 
       .employee-card {
         margin-top: 10px;
         padding: 10px;
       }
 
-      .employee-meta span:last-child {
-        display: none;
-      }
+      .employee-meta span:last-child { display: none; }
 
       .mini-stats {
         grid-template-columns: 1fr;
@@ -630,39 +533,24 @@
         padding: 10px;
       }
 
-      .gps-grid {
-        grid-template-columns: 1fr 1fr;
-      }
+      .gps-grid { grid-template-columns: 1fr 1fr; }
 
       .gps-grid .gps-item:nth-child(1),
-      .gps-grid .gps-item:nth-child(2) {
-        display: none;
-      }
+      .gps-grid .gps-item:nth-child(2) { display: none; }
 
-      .gps-item {
-        padding: 8px 10px;
-      }
+      .gps-item { padding: 8px 10px; }
+      .gps-item b { font-size: 0.82rem; }
 
-      .gps-item b {
-        font-size: 0.82rem;
-      }
-
-      .status-list {
-        gap: 8px;
-      }
+      .status-list { gap: 8px; }
 
       .status-item {
         padding: 10px;
         align-items: flex-start;
       }
 
-      .status-item strong {
-        font-size: 0.84rem;
-      }
+      .status-item strong { font-size: 0.84rem; }
 
-      #recordList .status-item:nth-child(n+4) {
-        display: none;
-      }
+      #recordList .status-item:nth-child(n+4) { display: none; }
 
       .links-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -722,12 +610,23 @@
           </a>
         </div>
 
-        <div class="hero-layout">
-          <div class="hero-panel">
-            <div class="eyebrow">📍 LUFTQI 打卡系統</div>
-            <h1>出勤系統首頁</h1>
-            <p class="hero-desc">桌機看資訊，手機先操作。首頁主軸先把打卡與今日狀態擺到最前面。</p>
-          </div>
+        <div class="desktop-main-grid">
+          <section class="panel">
+            <div class="panel-title">
+              <h3>打卡紀錄（最近 5 筆）</h3>
+              <small>即時資料</small>
+            </div>
+
+            <div class="status-list" id="recordList">
+              <div class="status-item">
+                <div>
+                  <strong>載入中...</strong>
+                  <span>正在讀取最新打卡紀錄</span>
+                </div>
+                <div class="badge success">同步中</div>
+              </div>
+            </div>
+          </section>
 
           <aside class="dashboard-panel">
             <div class="dashboard-top">
@@ -752,7 +651,6 @@
 
             <div class="mini-stats">
               <div class="mini-stat"><b id="workStatus">未打卡</b><span>目前狀態</span></div>
-              <div class="mini-stat"><b id="todayClockIn">--:--</b><span>今日上班</span></div>
               <div class="mini-stat"><b id="distanceText">-- m</b><span>距離公司</span></div>
             </div>
 
@@ -787,28 +685,10 @@
     </section>
 
     <section class="section">
-      <div class="container grid-2">
+      <div class="container secondary-grid">
         <section class="panel">
           <div class="panel-title">
-            <h3>打卡紀錄（最近 5 筆）</h3>
-            <small>即時資料</small>
-          </div>
-
-          <div class="status-list" id="recordList">
-            <div class="status-item">
-              <div>
-                <strong>載入中...</strong>
-                <span>正在讀取最新打卡紀錄</span>
-              </div>
-              <div class="badge success">同步中</div>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-title">
-            <h3>常用入口</h3>
-            <small>快捷通道</small>
+            <h3>其他功能</h3>
           </div>
 
           <div class="links-grid">
@@ -830,7 +710,7 @@
             <a class="quick-link-card" href="#">
               <div class="quick-link-icon">🛠️</div>
               <h3>管理後台</h3>
-              <p>後續新增權限</p>
+              <p>系統管理</p>
             </a>
           </div>
         </section>
@@ -963,8 +843,14 @@
               <div class="badge warning">空白</div>
             </div>
           `;
+          document.getElementById('workStatus').textContent = '未打卡';
+          document.getElementById('distanceText').textContent = '-- m';
           return;
         }
+
+        const latestRecord = result.records[0];
+        document.getElementById('workStatus').textContent = latestRecord.action || '未打卡';
+        document.getElementById('distanceText').textContent = latestRecord.distance !== '' && latestRecord.distance !== undefined ? `${latestRecord.distance} m` : '-- m';
 
         recordList.innerHTML = result.records.map((record) => {
           const timestamp = formatRecordDate(record.timestamp);
@@ -1006,7 +892,6 @@
         OFFICE_LOCATION.lng
       );
       const isInRange = distance <= OFFICE_LOCATION.radius;
-      const now = new Date().toLocaleTimeString('zh-TW', { hour12: false });
 
       document.getElementById('latText').textContent = latitude.toFixed(6);
       document.getElementById('lngText').textContent = longitude.toFixed(6);
@@ -1046,9 +931,6 @@
         if (result.ok) {
           document.getElementById('gpsMessage').textContent = `${actionLabel} 打卡成功 ✅`;
           document.getElementById('workStatus').textContent = actionLabel;
-          if (actionLabel === '已上班') {
-            document.getElementById('todayClockIn').textContent = now.slice(0, 5);
-          }
           setGpsDot('success');
           await fetchRecentRecords();
         } else {
