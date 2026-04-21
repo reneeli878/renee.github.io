@@ -357,6 +357,7 @@
           <div>
             <div class="eyebrow">📊 個人出勤紀錄</div>
             <h1>我的出勤查詢頁</h1>
+            <p class="head-desc">登入後自動帶入 LINE 身分，只查自己的出勤紀錄。桌機像個人報表台，手機像可滑動的查詢面板。</p>
           </div>
           <button class="btn btn-primary" id="refreshBtn" type="button">重新整理</button>
         </div>
@@ -458,8 +459,8 @@
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script>
-    const LIFF_ID = "2008602232-c53WoD3q";
-    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxyAKH_jKbP2KN_8royJLS4Le5u1w_MaNi_4RlwSzpvViyt3bIHBAKHHmCaT7E6tRlt/exec";
+    const LIFF_ID = "請貼上你的LIFF ID";
+    const GAS_WEB_APP_URL = "請貼上你的GAS Web App URL";
     let allRecords = [];
     let currentUserId = "";
 
@@ -505,6 +506,74 @@
         latitude: record.latitude ?? '',
         longitude: record.longitude ?? ''
       };
+    }
+
+    function getDateKey(value) {
+      const date = safeDate(value);
+      if (!date) return '';
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    function condenseRecords(records) {
+      const grouped = new Map();
+
+      records.forEach((record) => {
+        const dateKey = getDateKey(record.timestamp) || `unknown-${Math.random()}`;
+        if (!grouped.has(dateKey)) {
+          grouped.set(dateKey, {
+            clockIn: null,
+            clockOut: null,
+            others: []
+          });
+        }
+
+        const bucket = grouped.get(dateKey);
+        const date = safeDate(record.timestamp);
+
+        if (record.action === '已上班') {
+          if (!bucket.clockIn) {
+            bucket.clockIn = record;
+          } else {
+            const current = safeDate(bucket.clockIn.timestamp);
+            if (date && current && date < current) {
+              bucket.clockIn = record;
+            }
+          }
+          return;
+        }
+
+        if (record.action === '已下班') {
+          if (!bucket.clockOut) {
+            bucket.clockOut = record;
+          } else {
+            const current = safeDate(bucket.clockOut.timestamp);
+            if (date && current && date > current) {
+              bucket.clockOut = record;
+            }
+          }
+          return;
+        }
+
+        bucket.others.push(record);
+      });
+
+      const result = [];
+      const orderedKeys = Array.from(grouped.keys()).sort((a, b) => new Date(b) - new Date(a));
+
+      orderedKeys.forEach((key) => {
+        const bucket = grouped.get(key);
+        const merged = [];
+        if (bucket.clockIn) merged.push(bucket.clockIn);
+        merged.push(...bucket.others.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
+        if (bucket.clockOut) merged.push(bucket.clockOut);
+        merged.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        result.push(...merged);
+      });
+
+      return result;
     }
 
     function renderSummary(records) {
@@ -641,7 +710,7 @@
           throw new Error(result.message || '讀取失敗');
         }
 
-        allRecords = result.records.map(normalizeRecord);
+        allRecords = condenseRecords(result.records.map(normalizeRecord));
         applyFilters();
       } catch (error) {
         renderSummary([]);
