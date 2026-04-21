@@ -357,7 +357,6 @@
           <div>
             <div class="eyebrow">📊 個人出勤紀錄</div>
             <h1>我的出勤查詢頁</h1>
-            <p class="head-desc">登入後自動帶入 LINE 身分，只查自己的出勤紀錄。桌機像個人報表台，手機像可滑動的查詢面板。</p>
           </div>
           <button class="btn btn-primary" id="refreshBtn" type="button">重新整理</button>
         </div>
@@ -368,10 +367,6 @@
       <div class="container">
         <div class="filter-card">
           <div class="filter-grid">
-            <div class="field">
-              <label for="currentUserName">目前查詢對象</label>
-              <input id="currentUserName" type="text" value="載入中..." readonly />
-            </div>
             <div class="field">
               <label for="actionFilter">打卡類型</label>
               <select id="actionFilter">
@@ -441,9 +436,6 @@
                   <th>動作</th>
                   <th>距離公司</th>
                   <th>範圍狀態</th>
-                  <th>精確度</th>
-                  <th>緯度</th>
-                  <th>經度</th>
                 </tr>
               </thead>
               <tbody id="recordTableBody">
