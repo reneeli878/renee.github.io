@@ -921,7 +921,7 @@ async function initLiff() {
       return earthRadius * c;
     }
 
-    async function updateGpsDisplay(position, actionLabel) {
+async function updateGpsDisplay(position, actionLabel) {
   const { latitude, longitude, accuracy } = position.coords;
 
   const distance = calculateDistanceMeters(
@@ -937,7 +937,7 @@ async function initLiff() {
     hour12: false
   });
 
-  // 畫面更新
+  // 畫面資訊更新
   document.getElementById("latText").textContent =
     latitude.toFixed(6);
 
@@ -953,22 +953,34 @@ async function initLiff() {
   document.getElementById("rangeText").textContent =
     isInRange ? "可打卡" : "超出範圍";
 
+  // ❌ 超出範圍直接擋住
+  if (!isInRange) {
+    document.getElementById("gpsMessage").textContent =
+      `距離公司 ${Math.round(distance)} 公尺，超出打卡範圍，無法打卡`;
+
+    document.getElementById("workStatus").textContent =
+      "位置異常";
+
+    setGpsDot("danger");
+    return;
+  }
+
+  // ✅ 在範圍內才送出
   document.getElementById("gpsMessage").textContent =
-    "資料送出中...";
+    "GPS 驗證成功，資料送出中...";
 
   try {
-    // 取得 LINE 使用者資料
     const profile = await liff.getProfile();
 
     const payload = {
       action: actionLabel,
       name: profile.displayName,
       userId: profile.userId,
-      latitude: latitude,
-      longitude: longitude,
+      latitude,
+      longitude,
       accuracy: Math.round(accuracy),
       distance: Math.round(distance),
-      inRange: isInRange,
+      inRange: true,
       time: new Date().toISOString()
     };
 
@@ -977,25 +989,30 @@ async function initLiff() {
     if (result.ok) {
       document.getElementById("gpsMessage").textContent =
         `${actionLabel} 打卡成功 ✅`;
+
+      document.getElementById("workStatus").textContent =
+        actionLabel;
+
+      if (actionLabel === "已上班") {
+        document.getElementById("todayClockIn").textContent =
+          now.slice(0, 5);
+      }
+
+      setGpsDot("success");
+
     } else {
       document.getElementById("gpsMessage").textContent =
         `寫入失敗：${result.message}`;
+
+      setGpsDot("danger");
     }
 
   } catch (error) {
     document.getElementById("gpsMessage").textContent =
       `送出失敗：${error.message}`;
+
+    setGpsDot("danger");
   }
-
-  document.getElementById("workStatus").textContent =
-    isInRange ? actionLabel : "位置異常";
-
-  if (actionLabel === "已上班") {
-    document.getElementById("todayClockIn").textContent =
-      now.slice(0, 5);
-  }
-
-  setGpsDot(isInRange ? "success" : "danger");
 }
     function handleGpsError(error) {
       const messageMap = {
