@@ -8,21 +8,23 @@
   <script>
   const LIFF_ID = "2008602232-c53WoD3q";
 
-  async function initLiff() {
-    try {
-      await liff.init({ liffId: 2008602232-c53WoD3q });
+  const LIFF_ID = "2001234567-abcdEfgh";
 
-      if (!liff.isLoggedIn()) {
-        liff.login();
-        return;
-      }
+async function initLiff() {
+  try {
+    await liff.init({ liffId: LIFF_ID });
 
-      const profile = await liff.getProfile();
-      console.log("LIFF 初始化成功", profile);
-    } catch (error) {
-      console.error("LIFF 初始化失敗", error);
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
     }
+
+    const profile = await liff.getProfile();
+    console.log("LIFF 初始化成功", profile);
+  } catch (error) {
+    console.error("LIFF 初始化失敗", error);
   }
+}
 
   initLiff();
 </script>
