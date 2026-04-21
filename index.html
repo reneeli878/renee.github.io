@@ -4,6 +4,43 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LINE 打卡系統首頁</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script>
+  const LIFF_ID = "2008602232-c53WoD3q";
+
+  async function initLiff() {
+    try {
+      await liff.init({ liffId: 2008602232-c53WoD3q });
+
+      if (!liff.isLoggedIn()) {
+        liff.login();
+        return;
+      }
+
+      const profile = await liff.getProfile();
+      console.log("LIFF 初始化成功", profile);
+    } catch (error) {
+      console.error("LIFF 初始化失敗", error);
+    }
+  }
+
+  initLiff();
+</script>
+<script>
+  const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx7-PbMXiQK4ts1ELS8xp3WeIVkrdmoWsyCAlvV1XrrpGFpKdCcVx88j0zQY5MH6JDH/exec";
+
+  async function sendAttendanceToGAS(payload) {
+    const response = await fetch(GAS_WEB_APP_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    return await response.json();
+  }
+</script>
   <style>
     :root {
       --primary: rgb(60, 130, 191);
@@ -884,34 +921,82 @@
       return earthRadius * c;
     }
 
-    function updateGpsDisplay(position, actionLabel) {
-      const { latitude, longitude, accuracy } = position.coords;
-      const distance = calculateDistanceMeters(
-        latitude,
-        longitude,
-        OFFICE_LOCATION.lat,
-        OFFICE_LOCATION.lng
-      );
-      const isInRange = distance <= OFFICE_LOCATION.radius;
-      const now = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+    async function updateGpsDisplay(position, actionLabel) {
+  const { latitude, longitude, accuracy } = position.coords;
 
-      document.getElementById('latText').textContent = latitude.toFixed(6);
-      document.getElementById('lngText').textContent = longitude.toFixed(6);
-      document.getElementById('accuracyText').textContent = `± ${Math.round(accuracy)} m`;
-      document.getElementById('distanceText').textContent = `${Math.round(distance)} m`;
-      document.getElementById('rangeText').textContent = isInRange ? '可打卡' : '不在範圍';
-      document.getElementById('gpsMessage').textContent = isInRange
-        ? `${actionLabel} GPS 驗證成功，位置在公司 ${OFFICE_LOCATION.radius} 公尺範圍內。`
-        : `${actionLabel} GPS 已取得，但目前距離公司約 ${Math.round(distance)} 公尺，超出打卡範圍，這是開發模式所以先不鎖按鈕。`;
+  const distance = calculateDistanceMeters(
+    latitude,
+    longitude,
+    OFFICE_LOCATION.lat,
+    OFFICE_LOCATION.lng
+  );
 
-      document.getElementById('workStatus').textContent = isInRange ? actionLabel : '位置異常';
-      if (actionLabel === '已上班') {
-        document.getElementById('todayClockIn').textContent = now.slice(0, 5);
-      }
+  const isInRange = distance <= OFFICE_LOCATION.radius;
 
-      setGpsDot(isInRange ? 'success' : 'danger');
+  const now = new Date().toLocaleTimeString("zh-TW", {
+    hour12: false
+  });
+
+  // 畫面更新
+  document.getElementById("latText").textContent =
+    latitude.toFixed(6);
+
+  document.getElementById("lngText").textContent =
+    longitude.toFixed(6);
+
+  document.getElementById("accuracyText").textContent =
+    `± ${Math.round(accuracy)} m`;
+
+  document.getElementById("distanceText").textContent =
+    `${Math.round(distance)} m`;
+
+  document.getElementById("rangeText").textContent =
+    isInRange ? "可打卡" : "超出範圍";
+
+  document.getElementById("gpsMessage").textContent =
+    "資料送出中...";
+
+  try {
+    // 取得 LINE 使用者資料
+    const profile = await liff.getProfile();
+
+    const payload = {
+      action: actionLabel,
+      name: profile.displayName,
+      userId: profile.userId,
+      latitude: latitude,
+      longitude: longitude,
+      accuracy: Math.round(accuracy),
+      distance: Math.round(distance),
+      inRange: isInRange,
+      time: new Date().toISOString()
+    };
+
+    const result = await sendAttendanceToGAS(payload);
+
+    if (result.ok) {
+      document.getElementById("gpsMessage").textContent =
+        `${actionLabel} 打卡成功 ✅`;
+    } else {
+      document.getElementById("gpsMessage").textContent =
+        `寫入失敗：${result.message}`;
     }
 
+  } catch (error) {
+    document.getElementById("gpsMessage").textContent =
+      `送出失敗：${error.message}`;
+  }
+
+  document.getElementById("workStatus").textContent =
+    isInRange ? actionLabel : "位置異常";
+
+  if (actionLabel === "已上班") {
+    document.getElementById("todayClockIn").textContent =
+      now.slice(0, 5);
+  }
+
+  setGpsDot(isInRange ? "success" : "danger");
+}
     function handleGpsError(error) {
       const messageMap = {
         1: '定位權限被拒絕，請先允許位置存取。',
