@@ -4,43 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>LINE 打卡系統首頁</title>
-  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-  <script>
-  const LIFF_ID = "2008602232-c53WoD3q";
-
-async function initLiff() {
-  try {
-    await liff.init({ liffId: LIFF_ID });
-
-    if (!liff.isLoggedIn()) {
-      liff.login();
-      return;
-    }
-
-    const profile = await liff.getProfile();
-    console.log("LIFF 初始化成功", profile);
-  } catch (error) {
-    console.error("LIFF 初始化失敗", error);
-  }
-}
-
-  initLiff();
-</script>
-<script>
-  const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx2uxyZyDPtiT0HjjOUF0LYoqdguPCj1KLWPmXJcUgOzZZu38qB81eRITR1u6UXcawa/exec";
-
-  async function sendAttendanceToGAS(payload) {
-    const response = await fetch(GAS_WEB_APP_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain;charset=utf-8"
-      },
-      body: JSON.stringify(payload)
-    });
-
-    return await response.json();
-  }
-</script>
   <style>
     :root {
       --primary: rgb(60, 130, 191);
@@ -697,7 +660,7 @@ async function initLiff() {
         font-size: 0.84rem;
       }
 
-      .status-list .status-item:nth-child(n+4) {
+      #recordList .status-item:nth-child(n+4) {
         display: none;
       }
 
@@ -737,22 +700,22 @@ async function initLiff() {
     <section class="hero">
       <div class="container">
         <div class="top-actions">
-          <a class="top-action-card" href="#" onclick="handleAction('clockin')">
+          <a class="top-action-card" href="#" onclick="handleAction('clockin'); return false;">
             <div class="top-action-icon">🟢</div>
             <h4>上班打卡</h4>
             <span>Clock In</span>
           </a>
-          <a class="top-action-card" href="#" onclick="handleAction('clockout')">
+          <a class="top-action-card" href="#" onclick="handleAction('clockout'); return false;">
             <div class="top-action-icon">🔵</div>
             <h4>下班打卡</h4>
             <span>Clock Out</span>
           </a>
-          <a class="top-action-card" href="#" onclick="handleAction('goout')">
+          <a class="top-action-card" href="#" onclick="handleAction('goout'); return false;">
             <div class="top-action-icon">🟠</div>
             <h4>外出打卡</h4>
             <span>Go Out</span>
           </a>
-          <a class="top-action-card" href="#" onclick="handleAction('back')">
+          <a class="top-action-card" href="#" onclick="handleAction('back'); return false;">
             <div class="top-action-icon">🟣</div>
             <h4>返回公司</h4>
             <span>Back</span>
@@ -781,9 +744,9 @@ async function initLiff() {
             <div class="employee-card">
               <div class="avatar">王</div>
               <div class="employee-meta">
-                <strong>王小明</strong>
-                <span>部門：營運管理部</span>
-                <span>員工編號：EMP-001</span>
+                <strong id="displayName">未登入</strong>
+                <span id="displayDept">部門：營運管理部</span>
+                <span id="displayUserId">員工編號：--</span>
               </div>
             </div>
 
@@ -828,15 +791,17 @@ async function initLiff() {
         <section class="panel">
           <div class="panel-title">
             <h3>打卡紀錄（最近 5 筆）</h3>
-            <small>明細列表</small>
+            <small>即時資料</small>
           </div>
 
-          <div class="status-list">
-            <div class="status-item"><div><strong>2026/04/21 上班打卡</strong><span>09:02:11 ・ 台北辦公室</span></div><div class="badge success">成功</div></div>
-            <div class="status-item"><div><strong>2026/04/20 下班打卡</strong><span>18:07:46 ・ Web</span></div><div class="badge success">成功</div></div>
-            <div class="status-item"><div><strong>2026/04/20 外出回報</strong><span>13:25:02 ・ 客戶拜訪</span></div><div class="badge warning">外出</div></div>
-            <div class="status-item"><div><strong>2026/04/19 上班打卡</strong><span>08:58:33 ・ 台北辦公室</span></div><div class="badge success">成功</div></div>
-            <div class="status-item"><div><strong>2026/04/18 下班打卡</strong><span>18:03:14 ・ LINE</span></div><div class="badge success">成功</div></div>
+          <div class="status-list" id="recordList">
+            <div class="status-item">
+              <div>
+                <strong>載入中...</strong>
+                <span>正在讀取最新打卡紀錄</span>
+              </div>
+              <div class="badge success">同步中</div>
+            </div>
           </div>
         </section>
 
@@ -877,12 +842,34 @@ async function initLiff() {
     © 2026 LINE Attendance System Home. Built for GitHub Pages.
   </footer>
 
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script>
+    const LIFF_ID = "2008602232-c53WoD3q";
+    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxSw2YDB2z7BDj_ykkm_qlgwRiyPQxJqX5IpgKuVRBppL9urxMOR38oq_nnSzPlR6LL/exec";
+
     const OFFICE_LOCATION = {
       lat: 24.9585756,
       lng: 121.2461472,
       radius: 150
     };
+
+    async function initLiff() {
+      try {
+        await liff.init({ liffId: LIFF_ID });
+
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
+
+        const profile = await liff.getProfile();
+        document.getElementById('displayName').textContent = profile.displayName || '已登入使用者';
+        document.getElementById('displayUserId').textContent = `LINE ID：${profile.userId.slice(0, 8)}...`;
+      } catch (error) {
+        console.error('LIFF 初始化失敗:', error);
+        document.getElementById('gpsMessage').textContent = `LIFF 初始化失敗：${error.message}`;
+      }
+    }
 
     function updateClock() {
       const now = new Date();
@@ -896,6 +883,22 @@ async function initLiff() {
 
       document.getElementById('clock').textContent = time;
       document.getElementById('dateText').textContent = date;
+    }
+
+    function formatRecordDate(dateString) {
+      const date = new Date(dateString);
+      if (Number.isNaN(date.getTime())) {
+        return dateString || '--';
+      }
+      return date.toLocaleString('zh-TW', {
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
     }
 
     function setGpsDot(mode) {
@@ -921,98 +924,144 @@ async function initLiff() {
       return earthRadius * c;
     }
 
-async function updateGpsDisplay(position, actionLabel) {
-  const { latitude, longitude, accuracy } = position.coords;
-
-  const distance = calculateDistanceMeters(
-    latitude,
-    longitude,
-    OFFICE_LOCATION.lat,
-    OFFICE_LOCATION.lng
-  );
-
-  const isInRange = distance <= OFFICE_LOCATION.radius;
-
-  const now = new Date().toLocaleTimeString("zh-TW", {
-    hour12: false
-  });
-
-  // 畫面資訊更新
-  document.getElementById("latText").textContent =
-    latitude.toFixed(6);
-
-  document.getElementById("lngText").textContent =
-    longitude.toFixed(6);
-
-  document.getElementById("accuracyText").textContent =
-    `± ${Math.round(accuracy)} m`;
-
-  document.getElementById("distanceText").textContent =
-    `${Math.round(distance)} m`;
-
-  document.getElementById("rangeText").textContent =
-    isInRange ? "可打卡" : "超出範圍";
-
-  // ❌ 超出範圍直接擋住
-  if (!isInRange) {
-    document.getElementById("gpsMessage").textContent =
-      `距離公司 ${Math.round(distance)} 公尺，超出打卡範圍，無法打卡`;
-
-    document.getElementById("workStatus").textContent =
-      "位置異常";
-
-    setGpsDot("danger");
-    return;
-  }
-
-  // ✅ 在範圍內才送出
-  document.getElementById("gpsMessage").textContent =
-    "GPS 驗證成功，資料送出中...";
-
-  try {
-    const profile = await liff.getProfile();
-
-    const payload = {
-      action: actionLabel,
-      name: profile.displayName,
-      userId: profile.userId,
-      latitude,
-      longitude,
-      accuracy: Math.round(accuracy),
-      distance: Math.round(distance),
-      inRange: true
-    };
-
-    const result = await sendAttendanceToGAS(payload);
-
-    if (result.ok) {
-      document.getElementById("gpsMessage").textContent =
-        `${actionLabel} 打卡成功 ✅`;
-
-      document.getElementById("workStatus").textContent =
-        actionLabel;
-
-      if (actionLabel === "已上班") {
-        document.getElementById("todayClockIn").textContent =
-          now.slice(0, 5);
-      }
-
-      setGpsDot("success");
-
-    } else {
-      document.getElementById("gpsMessage").textContent =
-        `寫入失敗：${result.message}`;
-
-      setGpsDot("danger");
+    function getActionBadge(action) {
+      if (action && action.includes('外出')) return 'warning';
+      if (action && (action.includes('失敗') || action.includes('異常'))) return 'danger';
+      return 'success';
     }
 
-  } catch (error) {
-    document.getElementById("gpsMessage").textContent =
-      `送出失敗：${error.message}`;
+    async function sendAttendanceToGAS(payload) {
+      const response = await fetch(GAS_WEB_APP_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
+        body: JSON.stringify(payload)
+      });
 
-    setGpsDot("danger");
-  }
-}
+      return await response.json();
+    }
+
+    async function fetchRecentRecords() {
+      const recordList = document.getElementById('recordList');
+
+      try {
+        const response = await fetch(`${GAS_WEB_APP_URL}?action=recent`);
+        const result = await response.json();
+
+        if (!result.ok || !Array.isArray(result.records)) {
+          throw new Error(result.message || '讀取失敗');
+        }
+
+        if (result.records.length === 0) {
+          recordList.innerHTML = `
+            <div class="status-item">
+              <div>
+                <strong>目前沒有打卡紀錄</strong>
+                <span>完成第一筆打卡後，這裡會自動更新</span>
+              </div>
+              <div class="badge warning">空白</div>
+            </div>
+          `;
+          return;
+        }
+
+        recordList.innerHTML = result.records.map((record) => {
+          const timestamp = formatRecordDate(record.timestamp);
+          const action = record.action || '未分類';
+          const name = record.name || '未知使用者';
+          const distance = record.distance !== '' && record.distance !== undefined ? `${record.distance} m` : '--';
+          const badgeClass = getActionBadge(action);
+
+          return `
+            <div class="status-item">
+              <div>
+                <strong>${timestamp} ${action}</strong>
+                <span>${name} ・ 距離公司 ${distance}</span>
+              </div>
+              <div class="badge ${badgeClass}">${action}</div>
+            </div>
+          `;
+        }).join('');
+      } catch (error) {
+        console.error('讀取最近紀錄失敗:', error);
+        recordList.innerHTML = `
+          <div class="status-item">
+            <div>
+              <strong>讀取失敗</strong>
+              <span>${error.message}</span>
+            </div>
+            <div class="badge danger">失敗</div>
+          </div>
+        `;
+      }
+    }
+
+    async function updateGpsDisplay(position, actionLabel) {
+      const { latitude, longitude, accuracy } = position.coords;
+      const distance = calculateDistanceMeters(
+        latitude,
+        longitude,
+        OFFICE_LOCATION.lat,
+        OFFICE_LOCATION.lng
+      );
+      const isInRange = distance <= OFFICE_LOCATION.radius;
+      const now = new Date().toLocaleTimeString('zh-TW', { hour12: false });
+
+      document.getElementById('latText').textContent = latitude.toFixed(6);
+      document.getElementById('lngText').textContent = longitude.toFixed(6);
+      document.getElementById('accuracyText').textContent = `± ${Math.round(accuracy)} m`;
+      document.getElementById('distanceText').textContent = `${Math.round(distance)} m`;
+      document.getElementById('rangeText').textContent = isInRange ? '可打卡' : '超出範圍';
+
+      if (!isInRange) {
+        document.getElementById('gpsMessage').textContent = `距離公司 ${Math.round(distance)} 公尺，超出打卡範圍，無法打卡`;
+        document.getElementById('workStatus').textContent = '位置異常';
+        setGpsDot('danger');
+        return;
+      }
+
+      document.getElementById('gpsMessage').textContent = 'GPS 驗證成功，資料送出中...';
+
+      try {
+        if (!liff.isLoggedIn()) {
+          throw new Error('尚未登入 LINE');
+        }
+
+        const profile = await liff.getProfile();
+
+        const payload = {
+          action: actionLabel,
+          name: profile.displayName,
+          userId: profile.userId,
+          latitude,
+          longitude,
+          accuracy: Math.round(accuracy),
+          distance: Math.round(distance),
+          inRange: true
+        };
+
+        const result = await sendAttendanceToGAS(payload);
+
+        if (result.ok) {
+          document.getElementById('gpsMessage').textContent = `${actionLabel} 打卡成功 ✅`;
+          document.getElementById('workStatus').textContent = actionLabel;
+          if (actionLabel === '已上班') {
+            document.getElementById('todayClockIn').textContent = now.slice(0, 5);
+          }
+          setGpsDot('success');
+          await fetchRecentRecords();
+        } else {
+          document.getElementById('gpsMessage').textContent = `寫入失敗：${result.message}`;
+          setGpsDot('danger');
+        }
+      } catch (error) {
+        console.error('送出打卡失敗:', error);
+        document.getElementById('gpsMessage').textContent = `送出失敗：${error.message}`;
+        setGpsDot('danger');
+      }
+    }
+
     function handleGpsError(error) {
       const messageMap = {
         1: '定位權限被拒絕，請先允許位置存取。',
@@ -1060,7 +1109,9 @@ async function updateGpsDisplay(position, actionLabel) {
       );
     }
 
+    initLiff();
     updateClock();
+    fetchRecentRecords();
     setInterval(updateClock, 1000);
   </script>
 </body>
