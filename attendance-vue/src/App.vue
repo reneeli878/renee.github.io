@@ -25,13 +25,15 @@
             <button
               v-for="item in actionButtons"
               :key="item.key"
-              class="group rounded-[22px] border border-white/70 bg-white/88 px-3 py-4 text-center shadow-[0_14px_26px_rgba(25,55,90,0.07)] transition duration-200 hover:-translate-y-1 hover:shadow-[0_20px_34px_rgba(25,55,90,0.1)] max-sm:min-h-[106px]"
+              @click="handleAction(item.key)"
+              :disabled="isSubmitting"
+              class="group rounded-[22px] border border-white/70 bg-white/88 px-3 py-4 text-center shadow-[0_14px_26px_rgba(25,55,90,0.07)] transition duration-200 hover:-translate-y-1 hover:shadow-[0_20px_34px_rgba(25,55,90,0.1)] disabled:cursor-not-allowed disabled:opacity-60 max-sm:min-h-[106px]"
             >
               <div class="mx-auto mb-2 grid h-11 w-11 place-items-center rounded-2xl bg-[linear-gradient(135deg,rgba(60,130,191,0.14),rgba(60,130,191,0.06))] text-[18px] text-[rgb(31,77,117)] transition group-hover:scale-105">
                 {{ item.icon }}
               </div>
               <h4 class="text-[15px] font-bold text-slate-800 max-sm:text-[14px]">{{ item.label }}</h4>
-              <span class="mt-1 block text-xs text-slate-500">{{ item.sub }}</span>
+              <span class="mt-1 block text-xs text-slate-500">{{ isSubmitting ? '送出中...' : item.sub }}</span>
             </button>
           </div>
 
@@ -151,7 +153,13 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const LIFF_ID = '2008602232-c53WoD3q'
-const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxyAKH_jKbP2KN_8royJLS4Le5u1w_MaNi_4RlwSzpvViyt3bIHBAKHHmCaT7E6tRlt/exec'
+const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxSw2YDB2z7BDj_ykkm_qlgwRiyPQxJqX5IpgKuVRBppL9urxMOR38oq_nnSzPlR6LL/exec'
+
+const OFFICE_LOCATION = {
+  lat: 24.9585756,
+  lng: 121.2461472,
+  radius: 150
+}
 
 const actionButtons = [
   { key: 'clockin', icon: '🟢', label: '上班打卡', sub: 'Clock In' },
@@ -168,7 +176,9 @@ const quickLinks = [
 ]
 
 const now = ref(new Date())
+const isSubmitting = ref(false)
 let timer = null
+let workTimer = null
 
 const clock = computed(() => now.value.toLocaleTimeString('zh-TW', { hour12: false }))
 const dateText = computed(() => {
@@ -179,7 +189,7 @@ const dateText = computed(() => {
 })
 
 const user = ref({
-  avatar: '王',
+  avatar: '員',
   name: '未登入',
   dept: '部門：營運管理部',
   lineId: '員工編號：--'
@@ -207,11 +217,67 @@ const recentRecords = ref([
   }
 ])
 
+const latestClockInTime = ref(null)
+
+function formatRecordDate(dateString) {
+  const date = new Date(dateString)
+  if (Number.isNaN(date.getTime())) return dateString || '--'
+
+  return date.toLocaleString('zh-TW', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
+}
+
+function getBadgeClass(action) {
+  if (action && action.includes('外出')) return 'bg-amber-100 text-amber-700'
+  if (action && (action.includes('失敗') || action.includes('異常'))) return 'bg-red-100 text-red-600'
+  return 'bg-green-100 text-green-600'
+}
+
+function toRadians(value) {
+  return value * (Math.PI / 180)
+}
+
+function calculateDistanceMeters(lat1, lng1, lat2, lng2) {
+  const earthRadius = 6371000
+  const dLat = toRadians(lat2 - lat1)
+  const dLng = toRadians(lng2 - lng1)
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return earthRadius * c
+}
+
+function updateWorkingDuration() {
+  if (!latestClockInTime.value) return
+
+  const start = new Date(latestClockInTime.value)
+  if (Number.isNaN(start.getTime())) return
+
+  const diffMs = now.value - start
+  if (diffMs < 0) return
+
+  const totalMinutes = Math.floor(diffMs / 1000 / 60)
+  const hours = Math.floor(totalMinutes / 60)
+  const mins = totalMinutes % 60
+
+  dashboard.value = {
+    ...dashboard.value,
+    status: `已上班 ${hours} 小時 ${mins} 分`
+  }
+}
+
 async function initLiff() {
   try {
-    if (!window.liff) {
-      throw new Error('LIFF SDK 未載入')
-    }
+    if (!window.liff) throw new Error('LIFF SDK 未載入')
 
     await window.liff.init({ liffId: LIFF_ID })
 
@@ -238,25 +304,16 @@ async function initLiff() {
   }
 }
 
-function formatRecordDate(dateString) {
-  const date = new Date(dateString)
-  if (Number.isNaN(date.getTime())) return dateString || '--'
-
-  return date.toLocaleString('zh-TW', {
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
+async function sendAttendanceToGAS(payload) {
+  const response = await fetch(GAS_WEB_APP_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'text/plain;charset=utf-8'
+    },
+    body: JSON.stringify(payload)
   })
-}
 
-function getBadgeClass(action) {
-  if (action && action.includes('外出')) return 'bg-amber-100 text-amber-700'
-  if (action && (action.includes('失敗') || action.includes('異常'))) return 'bg-red-100 text-red-600'
-  return 'bg-green-100 text-green-600'
+  return await response.json()
 }
 
 async function fetchRecentRecords() {
@@ -279,17 +336,34 @@ async function fetchRecentRecords() {
           badgeClass: 'bg-amber-100 text-amber-700'
         }
       ]
+      latestClockInTime.value = null
+      dashboard.value = {
+        ...dashboard.value,
+        status: '未打卡',
+        distance: '-- m'
+      }
       return
-      const latestRecord = result.records[0]
+    }
 
-dashboard.value = {
-  ...dashboard.value,
-  status: latestRecord.action || '未打卡',
-  distance:
-    latestRecord.distance !== '' && latestRecord.distance !== undefined
-      ? `${latestRecord.distance} m`
-      : '-- m'
-}
+    const latestRecord = result.records[0]
+
+    if (latestRecord.action === '已上班') {
+      latestClockInTime.value = latestRecord.timestamp
+      updateWorkingDuration()
+    } else {
+      latestClockInTime.value = null
+      dashboard.value = {
+        ...dashboard.value,
+        status: latestRecord.action || '未打卡'
+      }
+    }
+
+    dashboard.value = {
+      ...dashboard.value,
+      distance:
+        latestRecord.distance !== '' && latestRecord.distance !== undefined
+          ? `${latestRecord.distance} m`
+          : '-- m'
     }
 
     recentRecords.value = result.records.map((record, index) => ({
@@ -318,10 +392,145 @@ dashboard.value = {
   }
 }
 
+function handleGpsError(error) {
+  const messageMap = {
+    1: '定位權限被拒絕，請先允許位置存取。',
+    2: '目前無法取得定位資訊，請確認 GPS 或網路狀態。',
+    3: '定位逾時，請到空曠處後再試一次。'
+  }
+
+  gps.value = {
+    ...gps.value,
+    accuracy: '--',
+    range: '定位失敗',
+    message: messageMap[error.code] || '定位失敗，請稍後再試。'
+  }
+
+  dashboard.value = {
+    ...dashboard.value,
+    status: '定位失敗',
+    distance: '-- m'
+  }
+
+  isSubmitting.value = false
+}
+
+async function updateGpsDisplay(position, actionLabel) {
+  const { latitude, longitude, accuracy } = position.coords
+  const distance = calculateDistanceMeters(latitude, longitude, OFFICE_LOCATION.lat, OFFICE_LOCATION.lng)
+  const isInRange = distance <= OFFICE_LOCATION.radius
+
+  gps.value = {
+    accuracy: `± ${Math.round(accuracy)} m`,
+    range: isInRange ? '可打卡' : '超出範圍',
+    message: isInRange
+      ? 'GPS 驗證成功，資料送出中...'
+      : `距離公司 ${Math.round(distance)} 公尺，超出打卡範圍，無法打卡`
+  }
+
+  dashboard.value = {
+    ...dashboard.value,
+    distance: `${Math.round(distance)} m`
+  }
+
+  if (!isInRange) {
+    dashboard.value = {
+      ...dashboard.value,
+      status: '位置異常'
+    }
+    isSubmitting.value = false
+    return
+  }
+
+  try {
+    if (!window.liff || !window.liff.isLoggedIn()) {
+      throw new Error('尚未登入 LINE')
+    }
+
+    const profile = await window.liff.getProfile()
+
+    const payload = {
+      action: actionLabel,
+      name: profile.displayName,
+      userId: profile.userId,
+      latitude,
+      longitude,
+      accuracy: Math.round(accuracy),
+      distance: Math.round(distance),
+      inRange: true
+    }
+
+    const result = await sendAttendanceToGAS(payload)
+
+    if (!result.ok) {
+      throw new Error(result.message || '寫入失敗')
+    }
+
+    gps.value = {
+      ...gps.value,
+      message: `${actionLabel} 打卡成功 ✅`
+    }
+
+    dashboard.value = {
+      ...dashboard.value,
+      status: actionLabel
+    }
+
+    await fetchRecentRecords()
+  } catch (error) {
+    console.error('送出打卡失敗:', error)
+    gps.value = {
+      ...gps.value,
+      message: `送出失敗：${error.message}`
+    }
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+function handleAction(type) {
+  const actionMap = {
+    clockin: '已上班',
+    clockout: '已下班',
+    goout: '外出中',
+    back: '返回公司'
+  }
+
+  if (!navigator.geolocation) {
+    gps.value = {
+      ...gps.value,
+      range: '不支援',
+      message: '這個裝置或瀏覽器不支援 GPS 定位。'
+    }
+    return
+  }
+
+  isSubmitting.value = true
+  gps.value = {
+    ...gps.value,
+    range: '定位中',
+    message: 'GPS 定位中，請稍候...'
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => updateGpsDisplay(position, actionMap[type] || '打卡完成'),
+    handleGpsError,
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
+    }
+  )
+}
+
 onMounted(() => {
   timer = window.setInterval(() => {
     now.value = new Date()
   }, 1000)
+
+  workTimer = window.setInterval(() => {
+    updateWorkingDuration()
+  }, 60000)
 
   initLiff()
   fetchRecentRecords()
@@ -329,5 +538,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (timer) window.clearInterval(timer)
+  if (workTimer) window.clearInterval(workTimer)
 })
 </script>
