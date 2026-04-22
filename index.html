@@ -773,6 +773,26 @@
       document.getElementById('clock').textContent = time;
       document.getElementById('dateText').textContent = date;
     }
+    function updateWorkingDuration() {
+  const workStatusEl = document.getElementById("workStatus");
+
+  if (!window.latestClockInTime) return;
+
+  const now = new Date();
+  const start = new Date(window.latestClockInTime);
+
+  if (isNaN(start.getTime())) return;
+
+  const diffMs = now - start;
+
+  if (diffMs < 0) return;
+
+  const totalMinutes = Math.floor(diffMs / 1000 / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+
+  workStatusEl.textContent = `已上班 ${hours} 小時 ${mins} 分`;
+} 
 
     function formatRecordDate(dateString) {
       const date = new Date(dateString);
@@ -831,66 +851,102 @@
       return await response.json();
     }
 
-    async function fetchRecentRecords() {
-      const recordList = document.getElementById('recordList');
+function updateWorkingDuration() {
+  const workStatusEl = document.getElementById("workStatus");
 
-      try {
-        const response = await fetch(`${GAS_WEB_APP_URL}?action=recent`);
-        const result = await response.json();
+  if (!window.latestClockInTime) return;
 
-        if (!result.ok || !Array.isArray(result.records)) {
-          throw new Error(result.message || '讀取失敗');
-        }
+  const now = new Date();
+  const start = new Date(window.latestClockInTime);
 
-        if (result.records.length === 0) {
-          recordList.innerHTML = `
-            <div class="status-item">
-              <div>
-                <strong>目前沒有打卡紀錄</strong>
-                <span>完成第一筆打卡後，這裡會自動更新</span>
-              </div>
-              <div class="badge warning">空白</div>
-            </div>
-          `;
-          document.getElementById('workStatus').textContent = '未打卡';
-          document.getElementById('distanceText').textContent = '-- m';
-          return;
-        }
+  if (isNaN(start.getTime())) return;
 
-        const latestRecord = result.records[0];
-        document.getElementById('workStatus').textContent = latestRecord.action || '未打卡';
-        document.getElementById('distanceText').textContent = latestRecord.distance !== '' && latestRecord.distance !== undefined ? `${latestRecord.distance} m` : '-- m';
+  const diffMs = now - start;
+  if (diffMs < 0) return;
 
-        recordList.innerHTML = result.records.map((record) => {
-          const timestamp = formatRecordDate(record.timestamp);
-          const action = record.action || '未分類';
-          const name = record.name || '未知使用者';
-          const distance = record.distance !== '' && record.distance !== undefined ? `${record.distance} m` : '--';
-          const badgeClass = getActionBadge(action);
+  const totalMinutes = Math.floor(diffMs / 1000 / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
 
-          return `
-            <div class="status-item">
-              <div>
-                <strong>${timestamp} ${action}</strong>
-                <span>${name} ・ 距離公司 ${distance}</span>
-              </div>
-              <div class="badge ${badgeClass}">${action}</div>
-            </div>
-          `;
-        }).join('');
-      } catch (error) {
-        console.error('讀取最近紀錄失敗:', error);
-        recordList.innerHTML = `
-          <div class="status-item">
-            <div>
-              <strong>讀取失敗</strong>
-              <span>${error.message}</span>
-            </div>
-            <div class="badge danger">失敗</div>
-          </div>
-        `;
-      }
+  workStatusEl.textContent = `已上班 ${hours} 小時 ${mins} 分`;
+}
+
+async function fetchRecentRecords() {
+  const recordList = document.getElementById("recordList");
+
+  try {
+    const response = await fetch(`${GAS_WEB_APP_URL}?action=recent`);
+    const result = await response.json();
+
+    if (!result.ok || !Array.isArray(result.records)) {
+      throw new Error(result.message || "讀取失敗");
     }
+
+    if (result.records.length === 0) {
+      recordList.innerHTML = `
+        <div class="status-item">
+          <div>
+            <strong>目前沒有打卡紀錄</strong>
+            <span>完成第一筆打卡後，這裡會自動更新</span>
+          </div>
+          <div class="badge warning">空白</div>
+        </div>
+      `;
+      window.latestClockInTime = null;
+      document.getElementById("workStatus").textContent = "未打卡";
+      document.getElementById("distanceText").textContent = "-- m";
+      return;
+    }
+
+    const latestRecord = result.records[0];
+
+    if (latestRecord.action === "已上班") {
+      window.latestClockInTime = latestRecord.timestamp;
+      updateWorkingDuration();
+    } else {
+      window.latestClockInTime = null;
+      document.getElementById("workStatus").textContent =
+        latestRecord.action || "未打卡";
+    }
+
+    document.getElementById("distanceText").textContent =
+      latestRecord.distance !== "" && latestRecord.distance !== undefined
+        ? `${latestRecord.distance} m`
+        : "-- m";
+
+    recordList.innerHTML = result.records.map((record) => {
+      const timestamp = formatRecordDate(record.timestamp);
+      const action = record.action || "未分類";
+      const name = record.name || "未知使用者";
+      const distance =
+        record.distance !== "" && record.distance !== undefined
+          ? `${record.distance} m`
+          : "--";
+      const badgeClass = getActionBadge(action);
+
+      return `
+        <div class="status-item">
+          <div>
+            <strong>${timestamp} ${action}</strong>
+            <span>${name} ・ 距離公司 ${distance}</span>
+          </div>
+          <div class="badge ${badgeClass}">${action}</div>
+        </div>
+      `;
+    }).join("");
+  } catch (error) {
+    console.error("讀取最近紀錄失敗:", error);
+    recordList.innerHTML = `
+      <div class="status-item">
+        <div>
+          <strong>讀取失敗</strong>
+          <span>${error.message}</span>
+        </div>
+        <div class="badge danger">失敗</div>
+      </div>
+    `;
+  }
+}
 
     async function updateGpsDisplay(position, actionLabel) {
       const { latitude, longitude, accuracy } = position.coords;
@@ -1004,6 +1060,7 @@
     updateClock();
     fetchRecentRecords();
     setInterval(updateClock, 1000);
+    setInterval(updateWorkingDuration, 60000);
   </script>
 </body>
 </html>
