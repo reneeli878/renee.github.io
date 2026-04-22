@@ -151,6 +151,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 const LIFF_ID = '2008602232-c53WoD3q'
+const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxyAKH_jKbP2KN_8royJLS4Le5u1w_MaNi_4RlwSzpvViyt3bIHBAKHHmCaT7E6tRlt/exec'
 
 const actionButtons = [
   { key: 'clockin', icon: '🟢', label: '上班打卡', sub: 'Clock In' },
@@ -237,12 +238,93 @@ async function initLiff() {
   }
 }
 
+function formatRecordDate(dateString) {
+  const date = new Date(dateString)
+  if (Number.isNaN(date.getTime())) return dateString || '--'
+
+  return date.toLocaleString('zh-TW', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
+}
+
+function getBadgeClass(action) {
+  if (action && action.includes('外出')) return 'bg-amber-100 text-amber-700'
+  if (action && (action.includes('失敗') || action.includes('異常'))) return 'bg-red-100 text-red-600'
+  return 'bg-green-100 text-green-600'
+}
+
+async function fetchRecentRecords() {
+  try {
+    const response = await fetch(`${GAS_WEB_APP_URL}?action=recent`)
+    const result = await response.json()
+
+    if (!result.ok || !Array.isArray(result.records)) {
+      throw new Error(result.message || '讀取失敗')
+    }
+
+    if (result.records.length === 0) {
+      recentRecords.value = [
+        {
+          id: 1,
+          time: '目前沒有打卡紀錄',
+          action: '空白',
+          name: '完成第一筆打卡後，這裡會自動更新',
+          distance: '--',
+          badgeClass: 'bg-amber-100 text-amber-700'
+        }
+      ]
+      return
+      const latestRecord = result.records[0]
+
+dashboard.value = {
+  ...dashboard.value,
+  status: latestRecord.action || '未打卡',
+  distance:
+    latestRecord.distance !== '' && latestRecord.distance !== undefined
+      ? `${latestRecord.distance} m`
+      : '-- m'
+}
+    }
+
+    recentRecords.value = result.records.map((record, index) => ({
+      id: index + 1,
+      time: formatRecordDate(record.timestamp),
+      action: record.action || '未分類',
+      name: record.name || '未知使用者',
+      distance:
+        record.distance !== '' && record.distance !== undefined
+          ? `${record.distance} m`
+          : '--',
+      badgeClass: getBadgeClass(record.action || '')
+    }))
+  } catch (error) {
+    console.error('讀取最近紀錄失敗:', error)
+    recentRecords.value = [
+      {
+        id: 1,
+        time: '讀取失敗',
+        action: '失敗',
+        name: error.message,
+        distance: '--',
+        badgeClass: 'bg-red-100 text-red-600'
+      }
+    ]
+  }
+}
+
 onMounted(() => {
   timer = window.setInterval(() => {
     now.value = new Date()
   }, 1000)
 
   initLiff()
+  fetchRecentRecords()
 })
 
 onBeforeUnmount(() => {
