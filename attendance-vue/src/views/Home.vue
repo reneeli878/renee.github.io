@@ -147,7 +147,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
-const DEV_MODE = false
+const DEV_MODE = true
 const LIFF_ID = '2008602232-c53WoD3q'
 const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxX0mNlGEMo8IPgPpaivGWGof1qF2fNsdZrSvrFn7aHNZpB2Io4RlK_cRj78q4Jr2Bx/exec'
 
@@ -165,8 +165,8 @@ const actionButtons = [
 ]
 
 const quickLinks = [
-  { icon: '📝', title: '補打卡申請', desc: '異常補登', to: '/' },
-  { icon: '🌴', title: '請假申請', desc: '假單流程', to: '/' },
+  { icon: '📝', title: '補打卡申請', desc: '異常補登', to: '/repair-attendance' },
+  { icon: '🌴', title: '請假申請', desc: '假單流程', to: '/leave-request' },
   { icon: '📅', title: '出勤查詢', desc: '完整記錄', to: '/my-attendance' },
   { icon: '🛠️', title: '管理後台', desc: '系統管理', to: '/' }
 ]
