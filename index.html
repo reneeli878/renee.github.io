@@ -63,16 +63,16 @@
     }
 
     .brand-badge {
-      width: 40px;
-      height: 40px;
-      border-radius: 14px;
-      display: grid;
-      place-items: center;
-      color: white;
-      font-weight: 900;
-      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%);
-      box-shadow: 0 10px 20px rgba(60, 130, 191, 0.22);
-    }
+  width: 70px;
+  height: 40px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: white;
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%);
+  box-shadow: 0 10px 20px rgba(60, 130, 191, 0.22);
+}
 
     .brand-text strong {
       display: block;
@@ -641,13 +641,13 @@
             </div>
 
             <div class="employee-card">
-              <div class="avatar" id="displayName"></div>
-              <div class="employee-meta">
-                <strong id="displayName">未登入</strong>
-                <span id="displayDept">部門：營運管理部</span>
-                <span id="displayUserId">員工編號：--</span>
-              </div>
-            </div>
+  <div class="avatar" id="avatarText"></div>
+  <div class="employee-meta">
+    <strong id="userNameText">未登入</strong>
+    <span id="displayDept">部門：營運管理部</span>
+    <span id="displayUserId">員工編號：--</span>
+  </div>
+</div>
 
             <div class="mini-stats">
               <div class="mini-stat"><b id="workStatus">未打卡</b><span>目前狀態</span></div>
@@ -702,11 +702,11 @@
               <h3>請假申請</h3>
               <p>假單流程</p>
             </a>
-            <a class="quick-link-card" href="myAttendance.html">
-              <div class="quick-link-icon">📅</div>
-              <h3>出勤查詢</h3>
-              <p>完整記錄</p>
-            </a>
+<a class="quick-link-card" href="attendance-query.html">
+  <div class="quick-link-icon">📅</div>
+  <h3>出勤查詢</h3>
+  <p>完整記錄</p>
+</a>
             <a class="quick-link-card" href="#">
               <div class="quick-link-icon">🛠️</div>
               <h3>管理後台</h3>
@@ -734,23 +734,31 @@
     };
 
     async function initLiff() {
-      try {
-        await liff.init({ liffId: LIFF_ID });
+  try {
+    await liff.init({ liffId: LIFF_ID });
 
-
-        if (!liff.isLoggedIn()) {
-          liff.login();
-          return;
-        }
-
-        const profile = await liff.getProfile();
-        document.getElementById('displayName').textContent = profile.displayName || '已登入使用者';
-        document.getElementById('displayUserId').textContent = `LINE ID：${profile.userId.slice(0, 8)}...`;
-      } catch (error) {
-        console.error('LIFF 初始化失敗:', error);
-        document.getElementById('gpsMessage').textContent = `LIFF 初始化失敗：${error.message}`;
-      }
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
     }
+
+    const profile = await liff.getProfile();
+    const fullName = profile.displayName || "已登入使用者";
+
+    document.getElementById("avatarText").textContent =
+      fullName.trim().charAt(0);
+
+    document.getElementById("userNameText").textContent =
+      fullName;
+
+    document.getElementById("displayUserId").textContent =
+      `LINE ID：${profile.userId.slice(0, 8)}...`;
+  } catch (error) {
+    console.error("LIFF 初始化失敗:", error);
+    document.getElementById("gpsMessage").textContent =
+      `LIFF 初始化失敗：${error.message}`;
+  }
+}
 
     function updateClock() {
       const now = new Date();

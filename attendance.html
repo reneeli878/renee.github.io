@@ -156,13 +156,6 @@
       letter-spacing: -0.04em;
     }
 
-    .head-desc {
-      margin: 8px 0 0;
-      color: var(--muted);
-      line-height: 1.6;
-      font-size: 0.9rem;
-    }
-
     .section { padding: 0 0 14px; }
 
     .filter-card,
@@ -172,7 +165,7 @@
 
     .filter-grid {
       display: grid;
-      grid-template-columns: 1.4fr 1fr 1fr 0.9fr 0.9fr auto;
+      grid-template-columns: 1fr 1fr 0.9fr 0.9fr auto;
       gap: 10px;
       align-items: end;
     }
@@ -327,10 +320,9 @@
 
       h1 { font-size: 1.45rem; }
 
-      .head-desc,
-      .field label,
       th,
-      td { font-size: 0.8rem; }
+      td,
+      .field label { font-size: 0.8rem; }
 
       table { min-width: 760px; }
     }
@@ -357,7 +349,6 @@
           <div>
             <div class="eyebrow">📊 個人出勤紀錄</div>
             <h1>我的出勤查詢頁</h1>
-            <p class="head-desc">登入後自動帶入 LINE 身分，只查自己的出勤紀錄。桌機像個人報表台，手機像可滑動的查詢面板。</p>
           </div>
           <button class="btn btn-primary" id="refreshBtn" type="button">重新整理</button>
         </div>
@@ -396,7 +387,6 @@
             </div>
             <button class="btn btn-primary" id="filterBtn" type="button">套用篩選</button>
           </div>
-            </div>
         </div>
       </div>
     </section>
@@ -438,7 +428,6 @@
                   <th>動作</th>
                   <th>距離公司</th>
                   <th>範圍狀態</th>
-                  
                 </tr>
               </thead>
               <tbody id="recordTableBody">
@@ -460,7 +449,8 @@
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script>
     const LIFF_ID = "2008602232-c53WoD3q";
-    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxqBemaogy7CjM3GYEL27BnxUv4Bopz2Ns1KZBUUZZVXFJImidKj_DQtX0GcSlGUAmZ/exec";
+    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxyAKH_jKbP2KN_8royJLS4Le5u1w_MaNi_4RlwSzpvViyt3bIHBAKHHmCaT7E6tRlt/exec";
+
     let allRecords = [];
     let currentUserId = "";
 
@@ -471,49 +461,49 @@
 
     function formatDateTime(value) {
       const date = safeDate(value);
-      if (!date) return value || '--';
-      return date.toLocaleString('zh-TW', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
+      if (!date) return value || "--";
+      return date.toLocaleString("zh-TW", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
         hour12: false
       });
     }
 
     function getStatusClass(action) {
-      if (action && action.includes('外出')) return 'status-warning';
-      if (action && (action.includes('失敗') || action.includes('異常'))) return 'status-danger';
-      return 'status-success';
+      if (action && action.includes("外出")) return "status-warning";
+      if (action && (action.includes("失敗") || action.includes("異常"))) return "status-danger";
+      return "status-success";
     }
 
     function getRangeText(value) {
-      if (value === true || value === 'true') return '範圍內';
-      if (value === false || value === 'false') return '範圍外';
-      return '--';
+      if (value === true || value === "true") return "範圍內";
+      if (value === false || value === "false") return "範圍外";
+      return "--";
     }
 
     function normalizeRecord(record) {
       return {
-        timestamp: record.timestamp || record.time || '',
-        name: record.name || '',
-        action: record.action || '',
-        distance: record.distance ?? '',
+        timestamp: record.timestamp || record.time || "",
+        name: record.name || "",
+        action: record.action || "",
+        distance: record.distance ?? "",
         inRange: record.inRange,
-        accuracy: record.accuracy ?? '',
-        latitude: record.latitude ?? '',
-        longitude: record.longitude ?? ''
+        accuracy: record.accuracy ?? "",
+        latitude: record.latitude ?? "",
+        longitude: record.longitude ?? ""
       };
     }
 
     function getDateKey(value) {
       const date = safeDate(value);
-      if (!date) return '';
+      if (!date) return "";
       const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
       return `${year}-${month}-${day}`;
     }
 
@@ -522,36 +512,37 @@
 
       records.forEach((record) => {
         const dateKey = getDateKey(record.timestamp) || `unknown-${Math.random()}`;
+
         if (!grouped.has(dateKey)) {
           grouped.set(dateKey, {
-            clockIn: null,
-            clockOut: null,
+            earliestClockIn: null,
+            latestClockOut: null,
             others: []
           });
         }
 
         const bucket = grouped.get(dateKey);
-        const date = safeDate(record.timestamp);
+        const recordDate = safeDate(record.timestamp);
 
-        if (record.action === '已上班') {
-          if (!bucket.clockIn) {
-            bucket.clockIn = record;
+        if (record.action === "已上班") {
+          if (!bucket.earliestClockIn) {
+            bucket.earliestClockIn = record;
           } else {
-            const current = safeDate(bucket.clockIn.timestamp);
-            if (date && current && date < current) {
-              bucket.clockIn = record;
+            const current = safeDate(bucket.earliestClockIn.timestamp);
+            if (recordDate && current && recordDate < current) {
+              bucket.earliestClockIn = record;
             }
           }
           return;
         }
 
-        if (record.action === '已下班') {
-          if (!bucket.clockOut) {
-            bucket.clockOut = record;
+        if (record.action === "已下班") {
+          if (!bucket.latestClockOut) {
+            bucket.latestClockOut = record;
           } else {
-            const current = safeDate(bucket.clockOut.timestamp);
-            if (date && current && date > current) {
-              bucket.clockOut = record;
+            const current = safeDate(bucket.latestClockOut.timestamp);
+            if (recordDate && current && recordDate > current) {
+              bucket.latestClockOut = record;
             }
           }
           return;
@@ -566,10 +557,25 @@
       orderedKeys.forEach((key) => {
         const bucket = grouped.get(key);
         const merged = [];
-        if (bucket.clockIn) merged.push(bucket.clockIn);
-        merged.push(...bucket.others.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)));
-        if (bucket.clockOut) merged.push(bucket.clockOut);
-        merged.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        if (bucket.earliestClockIn) merged.push(bucket.earliestClockIn);
+
+        merged.push(
+          ...bucket.others.sort((a, b) => {
+            const da = safeDate(a.timestamp);
+            const db = safeDate(b.timestamp);
+            return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
+          })
+        );
+
+        if (bucket.latestClockOut) merged.push(bucket.latestClockOut);
+
+        merged.sort((a, b) => {
+          const da = safeDate(a.timestamp);
+          const db = safeDate(b.timestamp);
+          return (db ? db.getTime() : 0) - (da ? da.getTime() : 0);
+        });
+
         result.push(...merged);
       });
 
@@ -577,34 +583,41 @@
     }
 
     function renderSummary(records) {
-      document.getElementById('summaryTotal').textContent = records.length;
-      document.getElementById('summaryClockIn').textContent = records.filter(r => r.action === '已上班').length;
-      document.getElementById('summaryClockOut').textContent = records.filter(r => r.action === '已下班').length;
+      document.getElementById("summaryTotal").textContent = records.length;
+      document.getElementById("summaryClockIn").textContent =
+        records.filter((r) => r.action === "已上班").length;
+      document.getElementById("summaryClockOut").textContent =
+        records.filter((r) => r.action === "已下班").length;
 
       const workHours = calculateMonthlyWorkHours(records);
-      document.getElementById('summaryWorkHours').textContent = `${workHours} 小時`;
-
-      
+      document.getElementById("summaryWorkHours").textContent = `${workHours} 小時`;
     }
 
     function calculateMonthlyWorkHours(records) {
-      const sorted = [...records].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+      const sorted = [...records].sort((a, b) => {
+        const da = safeDate(a.timestamp);
+        const db = safeDate(b.timestamp);
+        return (da ? da.getTime() : 0) - (db ? db.getTime() : 0);
+      });
+
       let totalMs = 0;
       let clockIn = null;
 
-      sorted.forEach(record => {
+      sorted.forEach((record) => {
         const d = safeDate(record.timestamp);
         if (!d) return;
 
-        if (record.action === '已上班') {
+        if (record.action === "已上班") {
           clockIn = d;
         }
 
-        if (record.action === '已下班' && clockIn) {
-          let diff = (d - clockIn);
+        if (record.action === "已下班" && clockIn) {
+          let diff = d - clockIn;
+
           if (diff > 6 * 60 * 60 * 1000) {
             diff -= 60 * 60 * 1000;
           }
+
           totalMs += diff;
           clockIn = null;
         }
@@ -614,43 +627,50 @@
     }
 
     function renderTable(records) {
-      const tbody = document.getElementById('recordTableBody');
-      const tableCard = document.getElementById('tableCard');
-      const emptyState = document.getElementById('emptyState');
+      const tbody = document.getElementById("recordTableBody");
+      const tableCard = document.getElementById("tableCard");
+      const emptyState = document.getElementById("emptyState");
 
       if (!records.length) {
-        tbody.innerHTML = '';
-        tableCard.style.display = 'none';
-        emptyState.style.display = 'block';
+        tbody.innerHTML = "";
+        tableCard.style.display = "none";
+        emptyState.style.display = "block";
         return;
       }
 
-      tableCard.style.display = 'block';
-      emptyState.style.display = 'none';
+      tableCard.style.display = "block";
+      emptyState.style.display = "none";
 
-      tbody.innerHTML = records.map(record => {
-        const action = record.action || '--';
-        const distance = record.distance !== '' && record.distance !== undefined ? `${record.distance} m` : '--';
-        
+      tbody.innerHTML = records.map((record) => {
+        const action = record.action || "--";
+        const distance =
+          record.distance !== "" && record.distance !== undefined
+            ? `${record.distance} m`
+            : "--";
+
         return `
           <tr>
             <td>${formatDateTime(record.timestamp)}</td>
-            <td>${record.name || '--'}</td>
-            <td><span class="status-tag ${getStatusClass(action)}">${action}</span></td>
+            <td>${record.name || "--"}</td>
+            <td>
+              <span class="status-tag ${getStatusClass(action)}">
+                ${action}
+              </span>
+            </td>
             <td>${distance}</td>
             <td>${getRangeText(record.inRange)}</td>
           </tr>
         `;
-      }).join('');
+      }).join("");
     }
 
     function applyFilters() {
-      const actionValue = document.getElementById('actionFilter').value;
-      const rangeValue = document.getElementById('rangeFilter').value;
-      const startDate = document.getElementById('startDate').value;
-      const endDate = document.getElementById('endDate').value;
+      const actionValue = document.getElementById("actionFilter").value;
+      const rangeValue = document.getElementById("rangeFilter").value;
+      const startDate = document.getElementById("startDate").value;
+      const endDate = document.getElementById("endDate").value;
 
-      const filtered = allRecords.filter(record => {
+      const filtered = allRecords.filter((record) => {
         const actionMatch = !actionValue || record.action === actionValue;
         const rangeMatch = !rangeValue || String(record.inRange) === rangeValue;
 
@@ -659,11 +679,11 @@
         let endMatch = true;
 
         if (startDate && recordDate) {
-          startMatch = recordDate >= new Date(`${startDate}T00:00:00`);
+          startMatch = recordDate >= new Date(startDate + "T00:00:00");
         }
 
         if (endDate && recordDate) {
-          endMatch = recordDate <= new Date(`${endDate}T23:59:59`);
+          endMatch = recordDate <= new Date(endDate + "T23:59:59");
         }
 
         return actionMatch && rangeMatch && startMatch && endMatch;
@@ -684,30 +704,30 @@
 
         const profile = await liff.getProfile();
         currentUserId = profile.userId;
-        // 已移除目前查詢對象欄位
         return true;
       } catch (error) {
-        // 已移除目前查詢對象欄位
-        const tbody = document.getElementById('recordTableBody');
-        tbody.innerHTML = `<tr><td colspan="8" class="muted">LIFF 初始化失敗：${error.message}</td></tr>`;
+        const tbody = document.getElementById("recordTableBody");
+        tbody.innerHTML = `<tr><td colspan="5" class="muted">LIFF 初始化失敗：${error.message}</td></tr>`;
         return false;
       }
     }
 
     async function fetchAttendanceRecords() {
-      const tbody = document.getElementById('recordTableBody');
-      tbody.innerHTML = '<tr><td colspan="8" class="muted">載入中...</td></tr>';
+      const tbody = document.getElementById("recordTableBody");
+      tbody.innerHTML = '<tr><td colspan="5" class="muted">載入中...</td></tr>';
 
       try {
         if (!currentUserId) {
-          throw new Error('尚未取得使用者身分');
+          throw new Error("尚未取得使用者身分");
         }
 
-        const response = await fetch(`${GAS_WEB_APP_URL}?action=myRecords&userId=${encodeURIComponent(currentUserId)}`);
+        const response = await fetch(
+          `${GAS_WEB_APP_URL}?action=myRecords&userId=${encodeURIComponent(currentUserId)}`
+        );
         const result = await response.json();
 
         if (!result.ok || !Array.isArray(result.records)) {
-          throw new Error(result.message || '讀取失敗');
+          throw new Error(result.message || "讀取失敗");
         }
 
         allRecords = condenseRecords(result.records.map(normalizeRecord));
@@ -718,12 +738,12 @@
       }
     }
 
-    document.getElementById('filterBtn').addEventListener('click', applyFilters);
-    document.getElementById('refreshBtn').addEventListener('click', fetchAttendanceRecords);
-    document.getElementById('actionFilter').addEventListener('change', applyFilters);
-    document.getElementById('rangeFilter').addEventListener('change', applyFilters);
-    document.getElementById('startDate').addEventListener('change', applyFilters);
-    document.getElementById('endDate').addEventListener('change', applyFilters);
+    document.getElementById("filterBtn").addEventListener("click", applyFilters);
+    document.getElementById("refreshBtn").addEventListener("click", fetchAttendanceRecords);
+    document.getElementById("actionFilter").addEventListener("change", applyFilters);
+    document.getElementById("rangeFilter").addEventListener("change", applyFilters);
+    document.getElementById("startDate").addEventListener("change", applyFilters);
+    document.getElementById("endDate").addEventListener("change", applyFilters);
 
     (async () => {
       const ready = await initLiff();
