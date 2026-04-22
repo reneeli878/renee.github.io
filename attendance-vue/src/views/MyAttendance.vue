@@ -55,7 +55,6 @@
         <section class="mt-3 rounded-[20px] border border-[rgba(219,231,241,0.96)] bg-white/92 p-4 shadow-[0_12px_24px_rgba(25,55,90,0.08)] max-sm:rounded-[18px] max-sm:p-3.5">
           <div class="mb-3 flex items-center justify-between gap-2.5">
             <h2 class="m-0 text-[1rem] font-bold">個人出勤明細</h2>
-            <small class="text-xs font-bold text-slate-500">僅顯示本人</small>
           </div>
 
           <div v-if="errorMessage" class="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-600">
@@ -89,7 +88,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
-const DEV_MODE = false
+const DEV_MODE = true
 const LIFF_ID = '2008602232-c53WoD3q'
 const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxSw2YDB2z7BDj_ykkm_qlgwRiyPQxJqX5IpgKuVRBppL9urxMOR38oq_nnSzPlR6LL/exec'
 
