@@ -2,8 +2,7 @@ name: Deploy Vue to GitHub Pages
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
@@ -22,11 +21,14 @@ jobs:
           node-version: 22
 
       - run: npm install
+        working-directory: attendance-vue
+
       - run: npm run build
+        working-directory: attendance-vue
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist
+          path: attendance-vue/dist
 
   deploy:
     needs: build
