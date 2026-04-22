@@ -334,15 +334,23 @@ async function initLiff() {
 }
 
 async function sendAttendanceToGAS(payload) {
-  const response = await fetch(GAS_WEB_APP_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'text/plain;charset=utf-8'
-    },
-    body: JSON.stringify(payload)
-  })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 15000)
 
-  return await response.json()
+  try {
+    const response = await fetch(GAS_WEB_APP_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    })
+
+    return await response.json()
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 async function fetchRecentRecords() {
@@ -430,6 +438,7 @@ function handleGpsError(error) {
     3: '定位逾時，請到空曠處後再試一次。'
   }
 
+  gpsStatus.value = 'danger'
   gps.value = {
     ...gps.value,
     accuracy: '--',
@@ -447,33 +456,38 @@ function handleGpsError(error) {
 }
 
 async function updateGpsDisplay(position, actionLabel) {
-  const { latitude, longitude, accuracy } = position.coords
-  const distance = calculateDistanceMeters(latitude, longitude, OFFICE_LOCATION.lat, OFFICE_LOCATION.lng)
-  const isInRange = distance <= OFFICE_LOCATION.radius
+  try {
+    const { latitude, longitude, accuracy } = position.coords
+    const distance = calculateDistanceMeters(
+      latitude,
+      longitude,
+      OFFICE_LOCATION.lat,
+      OFFICE_LOCATION.lng
+    )
+    const isInRange = distance <= OFFICE_LOCATION.radius
 
-  gps.value = {
-    accuracy: `± ${Math.round(accuracy)} m`,
-    range: isInRange ? '可打卡' : '超出範圍',
-    message: isInRange
-      ? 'GPS 驗證成功，資料送出中...'
-      : `距離公司 ${Math.round(distance)} 公尺，超出打卡範圍，無法打卡`
-  }
+    gps.value = {
+      accuracy: `± ${Math.round(accuracy)} m`,
+      range: isInRange ? '可打卡' : '超出範圍',
+      message: isInRange
+        ? 'GPS 驗證成功，資料送出中...'
+        : `距離公司 ${Math.round(distance)} 公尺，超出打卡範圍，無法打卡`
+    }
 
-  dashboard.value = {
-    ...dashboard.value,
-    distance: `${Math.round(distance)} m`
-  }
-
-  if (!isInRange) {
     dashboard.value = {
       ...dashboard.value,
-      status: '位置異常'
+      distance: `${Math.round(distance)} m`
     }
-    isSubmitting.value = false
-    return
-  }
 
-  try {
+    if (!isInRange) {
+      gpsStatus.value = 'danger'
+      dashboard.value = {
+        ...dashboard.value,
+        status: '位置異常'
+      }
+      return
+    }
+
     if (!window.liff || !window.liff.isLoggedIn()) {
       throw new Error('尚未登入 LINE')
     }
@@ -494,34 +508,30 @@ async function updateGpsDisplay(position, actionLabel) {
     const result = await sendAttendanceToGAS(payload)
 
     if (!result.ok) {
-  throw new Error(result.message || '寫入失敗')
-}
+      throw new Error(result.message || '寫入失敗')
+    }
 
-latestAction.value = actionLabel
-
-if (actionLabel === '已上班') {
-  latestClockInTime.value = new Date().toISOString()
-} else {
-  latestClockInTime.value = null
-}
-
-gpsStatus.value = 'success'
-gps.value = {
-  ...gps.value,
-  message: `${actionLabel} 打卡成功 ✅`
-}
-
-dashboard.value = {
-  ...dashboard.value,
-  status: actionLabel
-}
-
-await fetchRecentRecords()
-  } catch (error) {
-    console.error('送出打卡失敗:', error)
+    gpsStatus.value = 'success'
     gps.value = {
       ...gps.value,
-      message: `送出失敗：${error.message}`
+      message: `${actionLabel} 打卡成功 ✅`
+    }
+
+    dashboard.value = {
+      ...dashboard.value,
+      status: actionLabel
+    }
+
+    await fetchRecentRecords()
+  } catch (error) {
+    console.error('送出打卡失敗:', error)
+
+    gpsStatus.value = 'danger'
+    gps.value = {
+      ...gps.value,
+      message: error.name === 'AbortError'
+        ? '送出逾時，請再試一次。'
+        : `送出失敗：${error.message}`
     }
   } finally {
     isSubmitting.value = false
@@ -529,9 +539,7 @@ await fetchRecentRecords()
 }
 
 function handleAction(type) {
-  if (!isActionAllowed(type) || isSubmitting.value) {
-    return
-  }
+  if (isSubmitting.value) return
 
   const actionMap = {
     clockin: '已上班',
@@ -547,6 +555,7 @@ function handleAction(type) {
       range: '不支援',
       message: '這個裝置或瀏覽器不支援 GPS 定位。'
     }
+    isSubmitting.value = false
     return
   }
 
@@ -558,9 +567,27 @@ function handleAction(type) {
     message: 'GPS 定位中，請稍候...'
   }
 
+  const unlockTimer = setTimeout(() => {
+    if (isSubmitting.value) {
+      isSubmitting.value = false
+      gpsStatus.value = 'danger'
+      gps.value = {
+        ...gps.value,
+        range: '逾時',
+        message: '定位或送出逾時，請再試一次。'
+      }
+    }
+  }, 20000)
+
   navigator.geolocation.getCurrentPosition(
-    (position) => updateGpsDisplay(position, actionMap[type] || '打卡完成'),
-    handleGpsError,
+    async (position) => {
+      clearTimeout(unlockTimer)
+      await updateGpsDisplay(position, actionMap[type] || '打卡完成')
+    },
+    (error) => {
+      clearTimeout(unlockTimer)
+      handleGpsError(error)
+    },
     {
       enableHighAccuracy: true,
       timeout: 10000,
