@@ -70,6 +70,8 @@
                 <span class="text-[0.75rem] font-bold text-slate-500">目前狀態</span>
               </div>
 
+              
+
               <div class="mt-2.5 rounded-[14px] border border-slate-200 bg-[#fbfdff] p-3 max-sm:p-2.5">
                 <div class="mb-2 flex items-center justify-between gap-2.5">
                   <strong class="text-[0.88rem] font-bold">GPS 打卡測試</strong>
