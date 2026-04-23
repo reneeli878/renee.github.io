@@ -30,7 +30,7 @@
         <section class="rounded-[20px] border border-[rgba(219,231,241,0.96)] bg-white/92 p-4 shadow-[0_12px_24px_rgba(25,55,90,0.08)] max-sm:rounded-[18px] max-sm:p-3.5">
           <div class="mb-4">
             <h2 class="text-[1rem] font-bold">請假資料</h2>
-            <p class="mt-1 text-sm text-slate-500">已預留主管與附件欄位，之後可接 GAS、Drive 與 LINE 通知。</p>
+            <p class="mt-1 text-sm text-slate-500">第一版先完成申請表單與申請紀錄，後續可再接 GAS 與主管審核。</p>
           </div>
 
           <div class="grid gap-3 md:grid-cols-2">
@@ -41,25 +41,27 @@
                 class="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-[0.92rem] outline-none focus:border-sky-300"
               >
                 <option value="">請選擇</option>
-                <option value="事假">事假</option>
-                <option value="病假">病假</option>
                 <option value="特休">特休</option>
-                <option value="生理假">生理假</option>
-                <option value="家庭照顧假">家庭照顧假</option>
-                <option value="育嬰假">育嬰假</option>
+                <option value="補休">補休</option>
+                <option value="病假">病假</option>
+                <option value="事假">事假</option>
+                <option value="無薪假">無薪假</option>
+                <option value="婚假">婚假</option>
                 <option value="喪假">喪假</option>
+                <option value="產假">產假</option>
+                <option value="陪產假">陪產假</option>
               </select>
             </div>
 
             <div>
-              <label class="mb-1 block text-[0.78rem] font-bold text-slate-500">請假天數</label>
-              <input
-                v-model="form.days"
-                type="number"
-                min="0"
-                step="0.5"
+              <label class="mb-1 block text-[0.78rem] font-bold text-slate-500">請假單位</label>
+              <select
+                v-model="form.unit"
                 class="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-[0.92rem] outline-none focus:border-sky-300"
-              />
+              >
+                <option value="天">天</option>
+                <option value="小時">小時</option>
+              </select>
             </div>
 
             <div>
@@ -80,7 +82,36 @@
               />
             </div>
 
-            <div class="md:col-span-2">
+            <div v-if="form.unit === '小時'">
+              <label class="mb-1 block text-[0.78rem] font-bold text-slate-500">開始時間</label>
+              <input
+                v-model="form.startTime"
+                type="time"
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-[0.92rem] outline-none focus:border-sky-300"
+              />
+            </div>
+
+            <div v-if="form.unit === '小時'">
+              <label class="mb-1 block text-[0.78rem] font-bold text-slate-500">結束時間</label>
+              <input
+                v-model="form.endTime"
+                type="time"
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-[0.92rem] outline-none focus:border-sky-300"
+              />
+            </div>
+
+            <div>
+              <label class="mb-1 block text-[0.78rem] font-bold text-slate-500">請假數量</label>
+              <input
+                v-model.number="form.amount"
+                type="number"
+                min="0"
+                step="0.5"
+                class="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-[0.92rem] outline-none focus:border-sky-300"
+              />
+            </div>
+
+            <div>
               <label class="mb-1 block text-[0.78rem] font-bold text-slate-500">選擇主管</label>
               <select
                 v-model="form.managerUserId"
@@ -109,16 +140,7 @@
             </div>
 
             <div class="md:col-span-2">
-              <div class="mb-1 flex items-center justify-between gap-2">
-                <label class="block text-[0.78rem] font-bold text-slate-500">證明附件</label>
-                <span
-                  class="rounded-full px-2.5 py-1 text-[11px] font-bold"
-                  :class="needProof ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'"
-                >
-                  {{ needProof ? '建議上傳證明' : '可不附證明' }}
-                </span>
-              </div>
-
+              <label class="mb-1 block text-[0.78rem] font-bold text-slate-500">附件上傳（可選）</label>
               <input
                 type="file"
                 @change="handleFileChange"
@@ -133,6 +155,9 @@
           <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
             <div><strong>主管姓名：</strong>{{ form.managerName || '尚未選擇' }}</div>
             <div class="mt-1"><strong>主管 LINE User ID：</strong>{{ form.managerUserId || '尚未選擇' }}</div>
+            <div class="mt-1">
+              <strong>申請摘要：</strong>{{ leaveSummary }}
+            </div>
           </div>
 
           <div class="mt-4 flex gap-2">
@@ -154,6 +179,65 @@
             {{ message }}
           </div>
         </section>
+
+        <section class="mt-3 rounded-[20px] border border-[rgba(219,231,241,0.96)] bg-white/92 p-4 shadow-[0_12px_24px_rgba(25,55,90,0.08)] max-sm:rounded-[18px] max-sm:p-3.5">
+          <div class="mb-3 flex items-center justify-between gap-2.5">
+            <h2 class="text-[1rem] font-bold">申請紀錄</h2>
+            <small class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500">
+              最近 {{ leaveRecords.length }} 筆
+            </small>
+          </div>
+
+          <div v-if="!leaveRecords.length" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+            目前尚無請假申請紀錄。
+          </div>
+
+          <div v-else class="grid gap-2.5">
+            <div
+              v-for="record in leaveRecords"
+              :key="record.id"
+              class="rounded-xl border border-slate-200 bg-[#fbfdff] px-3 py-3"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <strong class="text-[0.92rem] font-bold text-slate-800">
+                      {{ record.leaveType }}
+                    </strong>
+                    <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                      {{ record.amount }} {{ record.unit }}
+                    </span>
+                    <span class="text-[0.78rem] text-slate-400">
+                      {{ record.applyDate }}
+                    </span>
+                  </div>
+
+                  <div class="mt-1 text-[0.82rem] leading-[1.55] text-slate-500">
+                    區間：{{ record.startDate }} ~ {{ record.endDate }}
+                    <span v-if="record.unit === '小時'">
+                      （{{ record.startTime || '--:--' }} ~ {{ record.endTime || '--:--' }}）
+                    </span>
+                  </div>
+
+                  <div class="mt-1 text-[0.82rem] leading-[1.55] text-slate-500">
+                    原因：{{ record.reason }}
+                  </div>
+
+                  <div class="mt-1 text-[0.78rem] leading-[1.5] text-slate-400">
+                    主管：{{ record.managerName || '未指定' }}
+                  </div>
+                </div>
+
+                <span
+                  class="whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold"
+                  :class="getStatusClass(record.status)"
+                >
+                  {{ record.status }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </main>
   </div>
@@ -169,13 +253,14 @@ const managers = [
   { name: '陳主管', userId: 'U_MANAGER_003' }
 ]
 
-const proofTypes = ['病假', '家庭照顧假', '育嬰假', '喪假']
-
 const form = reactive({
   leaveType: '',
-  days: '',
+  unit: '天',
   startDate: '',
   endDate: '',
+  startTime: '',
+  endTime: '',
+  amount: 1,
   reason: '',
   managerName: '',
   managerUserId: '',
@@ -185,7 +270,50 @@ const form = reactive({
 
 const message = ref('')
 
-const needProof = computed(() => proofTypes.includes(form.leaveType))
+const leaveRecords = ref([
+  {
+    id: 1,
+    applyDate: '2026/04/23 09:10',
+    leaveType: '特休',
+    unit: '天',
+    startDate: '2026-04-25',
+    endDate: '2026-04-25',
+    startTime: '',
+    endTime: '',
+    amount: 1,
+    reason: '家中有事，需請假一天。',
+    managerName: '王主任',
+    status: '待審核'
+  },
+  {
+    id: 2,
+    applyDate: '2026/04/18 14:25',
+    leaveType: '病假',
+    unit: '小時',
+    startDate: '2026-04-18',
+    endDate: '2026-04-18',
+    startTime: '14:00',
+    endTime: '17:00',
+    amount: 3,
+    reason: '身體不適，下午就醫休息。',
+    managerName: '李經理',
+    status: '已核准'
+  }
+])
+
+const leaveSummary = computed(() => {
+  if (!form.leaveType) return '尚未填寫完整請假資料'
+
+  const dateRange = form.startDate && form.endDate
+    ? `${form.startDate} ~ ${form.endDate}`
+    : '日期未完整'
+
+  const timeRange = form.unit === '小時'
+    ? ` ${form.startTime || '--:--'} ~ ${form.endTime || '--:--'}`
+    : ''
+
+  return `${form.leaveType}｜${dateRange}${timeRange}｜${form.amount || 0}${form.unit}`
+})
 
 function syncManagerName() {
   const manager = managers.find((item) => item.userId === form.managerUserId)
@@ -198,20 +326,54 @@ function handleFileChange(event) {
   form.attachmentName = file ? file.name : ''
 }
 
+function getStatusClass(status) {
+  if (status === '已核准') return 'bg-green-100 text-green-700'
+  if (status === '已退回') return 'bg-red-100 text-red-700'
+  return 'bg-amber-100 text-amber-700'
+}
+
 function submitForm() {
-  message.value = '請假骨架已升級，已預留主管與附件欄位，後續可接 GAS、Drive 與 LINE 通知。'
+  if (!form.leaveType || !form.startDate || !form.endDate || !form.reason || !form.amount) {
+    message.value = '請先填寫完整的請假資料。'
+    return
+  }
+
+  if (form.unit === '小時' && (!form.startTime || !form.endTime)) {
+    message.value = '請先填寫完整的請假時間。'
+    return
+  }
+
+  leaveRecords.value.unshift({
+    id: Date.now(),
+    applyDate: new Date().toLocaleString('zh-TW', { hour12: false }),
+    leaveType: form.leaveType,
+    unit: form.unit,
+    startDate: form.startDate,
+    endDate: form.endDate,
+    startTime: form.startTime,
+    endTime: form.endTime,
+    amount: form.amount,
+    reason: form.reason,
+    managerName: form.managerName,
+    status: '待審核'
+  })
+
+  message.value = '請假申請已加入申請紀錄。'
+  resetForm()
 }
 
 function resetForm() {
   form.leaveType = ''
-  form.days = ''
+  form.unit = '天'
   form.startDate = ''
   form.endDate = ''
+  form.startTime = ''
+  form.endTime = ''
+  form.amount = 1
   form.reason = ''
   form.managerName = ''
   form.managerUserId = ''
   form.attachmentFile = null
   form.attachmentName = ''
-  message.value = ''
 }
 </script>
