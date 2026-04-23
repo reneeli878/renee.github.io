@@ -149,7 +149,7 @@ import { RouterLink } from 'vue-router'
 
 const DEV_MODE = false
 const LIFF_ID = '2008602232-c53WoD3q'
-const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbx52Kxl53cTZuXMVg4B8Q_DIzurrHrMAzZfZBXl5jIk_Gexe6eRDnYcPR3JoVWQ_wO8/exec'
+const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwmpVjTGyGD-Iczt4oxAPuOA_RqOJ50NTVQriJOkXARb2Sb2Y0IMxsKOsC2htSOteKk/exec'
 
 
 const OFFICE_LOCATION = {
@@ -376,16 +376,24 @@ async function initLiff() {
 }
 
 async function sendAttendanceToGAS(payload) {
-  await fetch(GAS_WEB_APP_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload),
-    mode: 'no-cors'
-  })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 15000)
 
-  return { ok: true, message: '已送出（no-cors 測試）' }
+  try {
+    const response = await fetch(GAS_WEB_APP_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    })
+
+    return await response.json()
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
-
 
 async function fetchRecentRecords() {
   console.log('開始抓 recent records')
@@ -422,9 +430,9 @@ async function fetchRecentRecords() {
       action: record.action || '未分類',
       name: record.name || '未知使用者',
       distance:
-        record.distance !== '' && record.distance !== undefined
-          ? `${record.distance} m`
-          : '--',
+  record.distance !== '' && record.distance !== undefined && record.distance !== null
+    ? `${record.distance} m`
+    : '--',
       badgeClass: getBadgeClass(record.action || '')
     }))
   } catch (error) {
