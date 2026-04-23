@@ -135,18 +135,41 @@
         <section class="mt-3 rounded-[20px] border border-[rgba(219,231,241,0.96)] bg-white/92 p-4 shadow-[0_12px_24px_rgba(25,55,90,0.08)] max-sm:rounded-[18px] max-sm:p-3.5">
           <div class="mb-3 flex items-center justify-between gap-2.5">
             <h2 class="text-[1rem] font-bold">申請紀錄</h2>
-            <small class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500">
-              最近 {{ repairRecords.length }} 筆
-            </small>
+
+            <div class="flex items-center gap-2">
+              <button
+                @click="recordFilter = 'pending'"
+                class="rounded-full px-3 py-1.5 text-[11px] font-bold"
+                :class="recordFilter === 'pending'
+                  ? 'bg-[rgb(31,77,117)] text-white'
+                  : 'bg-slate-100 text-slate-500'"
+              >
+                未審核
+              </button>
+
+              <button
+                @click="recordFilter = 'reviewed'"
+                class="rounded-full px-3 py-1.5 text-[11px] font-bold"
+                :class="recordFilter === 'reviewed'
+                  ? 'bg-[rgb(31,77,117)] text-white'
+                  : 'bg-slate-100 text-slate-500'"
+              >
+                已審核
+              </button>
+            </div>
           </div>
 
-          <div v-if="!repairRecords.length" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
-            目前尚無補打卡申請紀錄。
+          <div class="mb-3 text-xs text-slate-500">
+            共 {{ filteredRepairRecords.length }} 筆
+          </div>
+
+          <div v-if="!filteredRepairRecords.length" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+            目前此分類沒有補打卡申請紀錄。
           </div>
 
           <div v-else class="grid gap-2.5">
             <div
-              v-for="record in repairRecords"
+              v-for="record in filteredRepairRecords"
               :key="record.id"
               class="rounded-xl border border-slate-200 bg-[#fbfdff] px-3 py-3"
             >
@@ -190,7 +213,7 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
 const managers = [
@@ -211,6 +234,7 @@ const form = reactive({
 })
 
 const message = ref('')
+const recordFilter = ref('pending')
 
 const repairRecords = ref([
   {
@@ -232,8 +256,30 @@ const repairRecords = ref([
     reason: '下班時手機沒電，回家後才發現未打卡。',
     managerName: '李經理',
     status: '已核准'
+  },
+  {
+    id: 3,
+    applyDate: '2026/04/18 09:12',
+    date: '2026-04-17',
+    time: '08:59',
+    type: '上班補卡',
+    reason: '手機定位異常，打卡未成功。',
+    managerName: '陳主管',
+    status: '已退回'
   }
 ])
+
+const filteredRepairRecords = computed(() => {
+  if (recordFilter.value === 'pending') {
+    return repairRecords.value.filter(
+      (record) => record.status === '待審核'
+    )
+  }
+
+  return repairRecords.value.filter(
+    (record) => record.status === '已核准' || record.status === '已退回'
+  )
+})
 
 function syncManagerName() {
   const manager = managers.find((item) => item.userId === form.managerUserId)
@@ -269,7 +315,8 @@ function submitForm() {
     status: '待審核'
   })
 
-  message.value = '補打卡申請已加入申請紀錄。'
+  recordFilter.value = 'pending'
+  message.value = '補打卡申請已加入未審核紀錄。'
   resetForm()
 }
 

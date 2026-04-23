@@ -184,17 +184,17 @@
           <div class="mb-3 flex items-center justify-between gap-2.5">
             <h2 class="text-[1rem] font-bold">申請紀錄</h2>
             <small class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500">
-              最近 {{ leaveRecords.length }} 筆
+              最近 {{ personalLeaveRecords.length }} 筆
             </small>
           </div>
 
-          <div v-if="!leaveRecords.length" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+          <div v-if="!personalLeaveRecords.length" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
             目前尚無請假申請紀錄。
           </div>
 
           <div v-else class="grid gap-2.5">
             <div
-              v-for="record in leaveRecords"
+              v-for="record in personalLeaveRecords"
               :key="record.id"
               class="rounded-xl border border-slate-200 bg-[#fbfdff] px-3 py-3"
             >
@@ -244,8 +244,16 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+
+const DEV_MODE = false
+const LIFF_ID = '2008602232-c53WoD3q'
+
+const currentUser = ref({
+  userId: '',
+  name: ''
+})
 
 const managers = [
   { name: '王主任', userId: 'U_MANAGER_001' },
@@ -273,6 +281,7 @@ const message = ref('')
 const leaveRecords = ref([
   {
     id: 1,
+    userId: 'U_TEST_001',
     applyDate: '2026/04/23 09:10',
     leaveType: '特休',
     unit: '天',
@@ -287,6 +296,7 @@ const leaveRecords = ref([
   },
   {
     id: 2,
+    userId: 'U_TEST_002',
     applyDate: '2026/04/18 14:25',
     leaveType: '病假',
     unit: '小時',
@@ -300,6 +310,13 @@ const leaveRecords = ref([
     status: '已核准'
   }
 ])
+
+const personalLeaveRecords = computed(() => {
+  if (!currentUser.value.userId) return []
+  return leaveRecords.value.filter(
+    record => record.userId === currentUser.value.userId
+  )
+})
 
 const leaveSummary = computed(() => {
   if (!form.leaveType) return '尚未填寫完整請假資料'
@@ -344,19 +361,20 @@ function submitForm() {
   }
 
   leaveRecords.value.unshift({
-    id: Date.now(),
-    applyDate: new Date().toLocaleString('zh-TW', { hour12: false }),
-    leaveType: form.leaveType,
-    unit: form.unit,
-    startDate: form.startDate,
-    endDate: form.endDate,
-    startTime: form.startTime,
-    endTime: form.endTime,
-    amount: form.amount,
-    reason: form.reason,
-    managerName: form.managerName,
-    status: '待審核'
-  })
+  id: Date.now(),
+  userId: currentUser.value.userId,
+  applyDate: new Date().toLocaleString('zh-TW', { hour12: false }),
+  leaveType: form.leaveType,
+  unit: form.unit,
+  startDate: form.startDate,
+  endDate: form.endDate,
+  startTime: form.startTime,
+  endTime: form.endTime,
+  amount: form.amount,
+  reason: form.reason,
+  managerName: form.managerName,
+  status: '待審核'
+})
 
   message.value = '請假申請已加入申請紀錄。'
   resetForm()
@@ -376,4 +394,37 @@ function resetForm() {
   form.attachmentFile = null
   form.attachmentName = ''
 }
+
+async function initLiff() {
+  try {
+    if (DEV_MODE) {
+      currentUser.value = {
+        userId: 'U_TEST_001',
+        name: '測試使用者'
+      }
+      return
+    }
+
+    if (!window.liff) throw new Error('LIFF SDK 未載入')
+
+    await window.liff.init({ liffId: LIFF_ID })
+
+    if (!window.liff.isLoggedIn()) {
+      window.liff.login()
+      return
+    }
+
+    const profile = await window.liff.getProfile()
+    currentUser.value = {
+      userId: profile.userId,
+      name: profile.displayName || ''
+    }
+  } catch (error) {
+    console.error('LIFF 初始化失敗:', error)
+  }
+}
+
+onMounted(async () => {
+  await initLiff()
+})
 </script>
