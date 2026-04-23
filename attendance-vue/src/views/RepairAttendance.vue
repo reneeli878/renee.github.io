@@ -131,6 +131,59 @@
             {{ message }}
           </div>
         </section>
+
+        <section class="mt-3 rounded-[20px] border border-[rgba(219,231,241,0.96)] bg-white/92 p-4 shadow-[0_12px_24px_rgba(25,55,90,0.08)] max-sm:rounded-[18px] max-sm:p-3.5">
+          <div class="mb-3 flex items-center justify-between gap-2.5">
+            <h2 class="text-[1rem] font-bold">申請紀錄</h2>
+            <small class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500">
+              最近 {{ repairRecords.length }} 筆
+            </small>
+          </div>
+
+          <div v-if="!repairRecords.length" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+            目前尚無補打卡申請紀錄。
+          </div>
+
+          <div v-else class="grid gap-2.5">
+            <div
+              v-for="record in repairRecords"
+              :key="record.id"
+              class="rounded-xl border border-slate-200 bg-[#fbfdff] px-3 py-3"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <strong class="text-[0.92rem] font-bold text-slate-800">
+                      {{ record.type }}
+                    </strong>
+                    <span class="text-[0.78rem] text-slate-400">
+                      {{ record.applyDate }}
+                    </span>
+                  </div>
+
+                  <div class="mt-1 text-[0.82rem] leading-[1.55] text-slate-500">
+                    補卡日期：{{ record.date }} {{ record.time }}
+                  </div>
+
+                  <div class="mt-1 text-[0.82rem] leading-[1.55] text-slate-500">
+                    原因：{{ record.reason }}
+                  </div>
+
+                  <div class="mt-1 text-[0.78rem] leading-[1.5] text-slate-400">
+                    主管：{{ record.managerName || '未指定' }}
+                  </div>
+                </div>
+
+                <span
+                  class="whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold"
+                  :class="getStatusClass(record.status)"
+                >
+                  {{ record.status }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </main>
   </div>
@@ -159,6 +212,29 @@ const form = reactive({
 
 const message = ref('')
 
+const repairRecords = ref([
+  {
+    id: 1,
+    applyDate: '2026/04/23 09:30',
+    date: '2026-04-22',
+    time: '08:55',
+    type: '上班補卡',
+    reason: '早上進公司時網路異常，未成功送出打卡。',
+    managerName: '王主任',
+    status: '待審核'
+  },
+  {
+    id: 2,
+    applyDate: '2026/04/20 18:40',
+    date: '2026-04-20',
+    time: '18:05',
+    type: '下班補卡',
+    reason: '下班時手機沒電，回家後才發現未打卡。',
+    managerName: '李經理',
+    status: '已核准'
+  }
+])
+
 function syncManagerName() {
   const manager = managers.find((item) => item.userId === form.managerUserId)
   form.managerName = manager ? manager.name : ''
@@ -170,8 +246,31 @@ function handleFileChange(event) {
   form.attachmentName = file ? file.name : ''
 }
 
+function getStatusClass(status) {
+  if (status === '已核准') return 'bg-green-100 text-green-700'
+  if (status === '已退回') return 'bg-red-100 text-red-700'
+  return 'bg-amber-100 text-amber-700'
+}
+
 function submitForm() {
-  message.value = '補打卡骨架已升級，已預留主管與附件欄位，後續可接 GAS 與 LINE 通知。'
+  if (!form.date || !form.type || !form.time || !form.reason) {
+    message.value = '請先填寫完整的補打卡資料。'
+    return
+  }
+
+  repairRecords.value.unshift({
+    id: Date.now(),
+    applyDate: new Date().toLocaleString('zh-TW', { hour12: false }),
+    date: form.date,
+    time: form.time,
+    type: form.type,
+    reason: form.reason,
+    managerName: form.managerName,
+    status: '待審核'
+  })
+
+  message.value = '補打卡申請已加入申請紀錄。'
+  resetForm()
 }
 
 function resetForm() {
@@ -183,6 +282,5 @@ function resetForm() {
   form.managerUserId = ''
   form.attachmentFile = null
   form.attachmentName = ''
-  message.value = ''
 }
 </script>

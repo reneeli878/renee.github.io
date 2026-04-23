@@ -169,7 +169,7 @@ const quickLinks = [
   { icon: '📝', title: '補打卡申請', desc: '異常補登', to: '/repair-attendance' },
   { icon: '🌴', title: '請假申請', desc: '假單流程', to: '/leave-request' },
   { icon: '📅', title: '出勤查詢', desc: '完整記錄', to: '/my-attendance' },
-  { icon: '🛠️', title: '管理後台', desc: '系統管理', to: '/' }
+  { icon: '🛠️', title: '管理後台', desc: '系統管理', to: '/employee-admin'  }
 ]
 
 const now = ref(new Date())
