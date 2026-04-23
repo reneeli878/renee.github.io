@@ -417,6 +417,7 @@ async function sendAttendanceToGAS(payload) {
 async function fetchRecentRecords() {
   recordsLoaded.value = false
   console.log('開始抓 recent records')
+
   try {
     const response = await fetch(`${GAS_WEB_APP_URL}?action=recent`)
     const result = await response.json()
@@ -450,9 +451,9 @@ async function fetchRecentRecords() {
       action: record.action || '未分類',
       name: record.name || '未知使用者',
       distance:
-  record.distance !== '' && record.distance !== undefined && record.distance !== null
-    ? `${record.distance} m`
-    : '--',
+        record.distance !== '' && record.distance !== undefined && record.distance !== null
+          ? `${record.distance} m`
+          : '--',
       badgeClass: getBadgeClass(record.action || '')
     }))
   } catch (error) {
@@ -467,6 +468,9 @@ async function fetchRecentRecords() {
         badgeClass: 'bg-red-100 text-red-600'
       }
     ]
+  } finally {
+    console.log('recordsLoaded = true')
+    recordsLoaded.value = true
   }
 }
 
