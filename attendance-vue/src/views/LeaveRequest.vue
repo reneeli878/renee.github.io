@@ -30,7 +30,13 @@
         <section class="rounded-[20px] border border-[rgba(219,231,241,0.96)] bg-white/92 p-4 shadow-[0_12px_24px_rgba(25,55,90,0.08)] max-sm:rounded-[18px] max-sm:p-3.5">
           <div class="mb-4">
             <h2 class="text-[1rem] font-bold">請假資料</h2>
-            <p class="mt-1 text-sm text-slate-500">第一版先完成申請表單與申請紀錄，後續可再接 GAS 與主管審核。</p>
+            <p class="mt-1 text-sm text-slate-500">送出後會寫入 Google Sheet，並同步顯示在下方申請紀錄。</p>
+          </div>
+
+          <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+            <div><strong>申請人：</strong>{{ currentUser.employeeName || currentUser.name || '未登入' }}</div>
+            <div class="mt-1"><strong>員工編號：</strong>{{ currentUser.employeeCode || '--' }}</div>
+            <div class="mt-1"><strong>部門職稱：</strong>{{ currentUser.dept || '尚未建檔' }}</div>
           </div>
 
           <div class="grid gap-3 md:grid-cols-2">
@@ -140,7 +146,7 @@
             </div>
 
             <div class="md:col-span-2">
-              <label class="mb-1 block text-[0.78rem] font-bold text-slate-500">附件上傳（可選）</label>
+              <label class="mb-1 block text-[0.78rem] font-bold text-slate-500">附件上傳（先記錄檔名）</label>
               <input
                 type="file"
                 @change="handleFileChange"
@@ -155,17 +161,16 @@
           <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
             <div><strong>主管姓名：</strong>{{ form.managerName || '尚未選擇' }}</div>
             <div class="mt-1"><strong>主管 LINE User ID：</strong>{{ form.managerUserId || '尚未選擇' }}</div>
-            <div class="mt-1">
-              <strong>申請摘要：</strong>{{ leaveSummary }}
-            </div>
+            <div class="mt-1"><strong>申請摘要：</strong>{{ leaveSummary }}</div>
           </div>
 
           <div class="mt-4 flex gap-2">
             <button
               @click="submitForm"
-              class="rounded-xl bg-[rgb(60,130,191)] px-4 py-3 text-sm font-bold text-white shadow-[0_8px_16px_rgba(60,130,191,0.18)]"
+              :disabled="submitting || loadingUser"
+              class="rounded-xl bg-[rgb(60,130,191)] px-4 py-3 text-sm font-bold text-white shadow-[0_8px_16px_rgba(60,130,191,0.18)] disabled:opacity-50"
             >
-              送出申請
+              {{ submitting ? '送出中...' : '送出申請' }}
             </button>
             <button
               @click="resetForm"
@@ -183,19 +188,49 @@
         <section class="mt-3 rounded-[20px] border border-[rgba(219,231,241,0.96)] bg-white/92 p-4 shadow-[0_12px_24px_rgba(25,55,90,0.08)] max-sm:rounded-[18px] max-sm:p-3.5">
           <div class="mb-3 flex items-center justify-between gap-2.5">
             <h2 class="text-[1rem] font-bold">申請紀錄</h2>
-            <small class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500">
-              最近 {{ personalLeaveRecords.length }} 筆
-            </small>
+
+            <div class="flex items-center gap-2">
+              <button
+                @click="recordFilter = 'pending'"
+                class="rounded-full px-3 py-1.5 text-[11px] font-bold"
+                :class="recordFilter === 'pending'
+                  ? 'bg-[rgb(31,77,117)] text-white'
+                  : 'bg-slate-100 text-slate-500'"
+              >
+                未審核
+              </button>
+
+              <button
+                @click="recordFilter = 'reviewed'"
+                class="rounded-full px-3 py-1.5 text-[11px] font-bold"
+                :class="recordFilter === 'reviewed'
+                  ? 'bg-[rgb(31,77,117)] text-white'
+                  : 'bg-slate-100 text-slate-500'"
+              >
+                已審核
+              </button>
+            </div>
           </div>
 
-          <div v-if="!personalLeaveRecords.length" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
-            目前尚無請假申請紀錄。
+          <div class="mb-3 flex items-center justify-between gap-2 text-xs text-slate-500">
+            <span>共 {{ filteredLeaveRecords.length }} 筆</span>
+            <button
+              @click="fetchLeaveRequests"
+              :disabled="loadingRecords"
+              class="rounded-full bg-slate-100 px-3 py-1.5 font-bold text-slate-600 disabled:opacity-50"
+            >
+              {{ loadingRecords ? '更新中...' : '重新整理' }}
+            </button>
+          </div>
+
+          <div v-if="!filteredLeaveRecords.length" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
+            目前此分類沒有請假申請紀錄。
           </div>
 
           <div v-else class="grid gap-2.5">
             <div
-              v-for="record in personalLeaveRecords"
-              :key="record.id"
+              v-for="record in filteredLeaveRecords"
+              :key="record.requestId || record.id"
               class="rounded-xl border border-slate-200 bg-[#fbfdff] px-3 py-3"
             >
               <div class="flex items-start justify-between gap-3">
@@ -226,6 +261,10 @@
                   <div class="mt-1 text-[0.78rem] leading-[1.5] text-slate-400">
                     主管：{{ record.managerName || '未指定' }}
                   </div>
+
+                  <div v-if="record.reviewNote" class="mt-1 text-[0.78rem] leading-[1.5] text-slate-400">
+                    審核備註：{{ record.reviewNote }}
+                  </div>
                 </div>
 
                 <span
@@ -247,19 +286,29 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
-const DEV_MODE = false
+const DEV_MODE = true
 const LIFF_ID = '2008602232-c53WoD3q'
-
-const currentUser = ref({
-  userId: '',
-  name: ''
-})
+const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwv3gEiBMZ2YmpIEIuL0v_bWTPSVWiN64g-GbGbvKQD5Xxh1D99jqUnG4Ka4Z1yT7d9/exec'
 
 const managers = [
   { name: '王主任', userId: 'U_MANAGER_001' },
   { name: '李經理', userId: 'U_MANAGER_002' },
   { name: '陳主管', userId: 'U_MANAGER_003' }
 ]
+
+const currentUser = ref({
+  userId: '',
+  name: '',
+  employeeName: '',
+  employeeCode: '',
+  dept: ''
+})
+
+const loadingUser = ref(false)
+const loadingRecords = ref(false)
+const submitting = ref(false)
+const message = ref('')
+const recordFilter = ref('pending')
 
 const form = reactive({
   leaveType: '',
@@ -276,47 +325,7 @@ const form = reactive({
   attachmentName: ''
 })
 
-const message = ref('')
-
-const leaveRecords = ref([
-  {
-    id: 1,
-    userId: 'U_TEST_001',
-    applyDate: '2026/04/23 09:10',
-    leaveType: '特休',
-    unit: '天',
-    startDate: '2026-04-25',
-    endDate: '2026-04-25',
-    startTime: '',
-    endTime: '',
-    amount: 1,
-    reason: '家中有事，需請假一天。',
-    managerName: '王主任',
-    status: '待審核'
-  },
-  {
-    id: 2,
-    userId: 'U_TEST_002',
-    applyDate: '2026/04/18 14:25',
-    leaveType: '病假',
-    unit: '小時',
-    startDate: '2026-04-18',
-    endDate: '2026-04-18',
-    startTime: '14:00',
-    endTime: '17:00',
-    amount: 3,
-    reason: '身體不適，下午就醫休息。',
-    managerName: '李經理',
-    status: '已核准'
-  }
-])
-
-const personalLeaveRecords = computed(() => {
-  if (!currentUser.value.userId) return []
-  return leaveRecords.value.filter(
-    record => record.userId === currentUser.value.userId
-  )
-})
+const leaveRecords = ref([])
 
 const leaveSummary = computed(() => {
   if (!form.leaveType) return '尚未填寫完整請假資料'
@@ -330,6 +339,20 @@ const leaveSummary = computed(() => {
     : ''
 
   return `${form.leaveType}｜${dateRange}${timeRange}｜${form.amount || 0}${form.unit}`
+})
+
+const filteredLeaveRecords = computed(() => {
+  if (recordFilter.value === 'pending') {
+    return leaveRecords.value.filter(
+      (record) => record.status === '待審核'
+    )
+  }
+
+  return leaveRecords.value.filter(
+    (record) =>
+      record.status === '已核准' ||
+      record.status === '已退回'
+  )
 })
 
 function syncManagerName() {
@@ -349,37 +372,6 @@ function getStatusClass(status) {
   return 'bg-amber-100 text-amber-700'
 }
 
-function submitForm() {
-  if (!form.leaveType || !form.startDate || !form.endDate || !form.reason || !form.amount) {
-    message.value = '請先填寫完整的請假資料。'
-    return
-  }
-
-  if (form.unit === '小時' && (!form.startTime || !form.endTime)) {
-    message.value = '請先填寫完整的請假時間。'
-    return
-  }
-
-  leaveRecords.value.unshift({
-  id: Date.now(),
-  userId: currentUser.value.userId,
-  applyDate: new Date().toLocaleString('zh-TW', { hour12: false }),
-  leaveType: form.leaveType,
-  unit: form.unit,
-  startDate: form.startDate,
-  endDate: form.endDate,
-  startTime: form.startTime,
-  endTime: form.endTime,
-  amount: form.amount,
-  reason: form.reason,
-  managerName: form.managerName,
-  status: '待審核'
-})
-
-  message.value = '請假申請已加入申請紀錄。'
-  resetForm()
-}
-
 function resetForm() {
   form.leaveType = ''
   form.unit = '天'
@@ -395,12 +387,30 @@ function resetForm() {
   form.attachmentName = ''
 }
 
+async function fetchEmployeeProfile(userId) {
+  const response = await fetch(
+    `${GAS_WEB_APP_URL}?action=getEmployee&userId=${encodeURIComponent(userId)}`
+  )
+  const result = await response.json()
+
+  if (!result.ok) {
+    throw new Error(result.message || '讀取員工資料失敗')
+  }
+
+  return result.employee || null
+}
+
 async function initLiff() {
+  loadingUser.value = true
+
   try {
     if (DEV_MODE) {
       currentUser.value = {
-        userId: 'U_TEST_001',
-        name: '測試使用者'
+        userId: 'DEV-MODE-USER',
+        name: '測試使用者',
+        employeeName: '測試使用者',
+        employeeCode: 'A001',
+        dept: '營運管理部｜專員'
       }
       return
     }
@@ -415,16 +425,117 @@ async function initLiff() {
     }
 
     const profile = await window.liff.getProfile()
+    const employee = await fetchEmployeeProfile(profile.userId)
+
+    const department = employee?.department || ''
+    const title = employee?.title || ''
+    const deptText = `${department}${department && title ? '｜' : ''}${title}`
+
     currentUser.value = {
       userId: profile.userId,
-      name: profile.displayName || ''
+      name: profile.displayName || '',
+      employeeName: employee?.employeeName || profile.displayName || '',
+      employeeCode: employee?.employeeCode || '',
+      dept: deptText || '尚未建檔'
     }
   } catch (error) {
     console.error('LIFF 初始化失敗:', error)
+    message.value = `LIFF 初始化失敗：${error.message}`
+  } finally {
+    loadingUser.value = false
+  }
+}
+
+async function fetchLeaveRequests() {
+  if (!currentUser.value.userId) return
+
+  loadingRecords.value = true
+
+  try {
+    const response = await fetch(
+      `${GAS_WEB_APP_URL}?action=getLeaveRequests&userId=${encodeURIComponent(currentUser.value.userId)}`
+    )
+    const result = await response.json()
+
+    if (!result.ok || !Array.isArray(result.records)) {
+      throw new Error(result.message || '讀取請假申請紀錄失敗')
+    }
+
+    leaveRecords.value = result.records
+  } catch (error) {
+    console.error('讀取請假申請紀錄失敗:', error)
+    message.value = error.message || '讀取請假申請紀錄失敗'
+    leaveRecords.value = []
+  } finally {
+    loadingRecords.value = false
+  }
+}
+
+async function submitForm() {
+  if (!form.leaveType || !form.startDate || !form.endDate || !form.reason || !form.amount) {
+    message.value = '請先填寫完整的請假資料。'
+    return
+  }
+
+  if (form.unit === '小時' && (!form.startTime || !form.endTime)) {
+    message.value = '請先填寫完整的請假時間。'
+    return
+  }
+
+  if (!currentUser.value.userId) {
+    message.value = '尚未取得登入者資料，請重新整理後再試。'
+    return
+  }
+
+  submitting.value = true
+
+  try {
+    const payload = {
+      action: 'saveLeaveRequest',
+      userId: currentUser.value.userId,
+      employeeCode: currentUser.value.employeeCode,
+      employeeName: currentUser.value.employeeName || currentUser.value.name,
+      leaveType: form.leaveType,
+      unit: form.unit,
+      startDate: form.startDate,
+      endDate: form.endDate,
+      startTime: form.startTime,
+      endTime: form.endTime,
+      amount: form.amount,
+      reason: form.reason,
+      managerName: form.managerName,
+      managerUserId: form.managerUserId,
+      attachmentName: form.attachmentName
+    }
+
+    const response = await fetch(GAS_WEB_APP_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: JSON.stringify(payload)
+    })
+
+    const result = await response.json()
+
+    if (!result.ok) {
+      throw new Error(result.message || '請假申請送出失敗')
+    }
+
+    recordFilter.value = 'pending'
+    message.value = '請假申請已送出。'
+    resetForm()
+    await fetchLeaveRequests()
+  } catch (error) {
+    console.error('請假申請送出失敗:', error)
+    message.value = error.message || '請假申請送出失敗'
+  } finally {
+    submitting.value = false
   }
 }
 
 onMounted(async () => {
   await initLiff()
+  await fetchLeaveRequests()
 })
 </script>

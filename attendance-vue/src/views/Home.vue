@@ -14,7 +14,7 @@
         </div>
 
         <div class="hidden items-center gap-2 text-xs font-bold text-slate-500 sm:flex">
-          <span class="rounded-full bg-[rgba(60,130,191,0.1)] px-3 py-1.5 text-[rgb(31,77,117)]">LINE GPS 打卡</span>
+          <span class="rounded-full bg-[rgba(60,130,191,0.1)] px-3 py-1.5 text-[rgb(31,77,117)]">開啟 GPS 打卡</span>
         </div>
       </div>
     </header>
@@ -147,7 +147,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 const recordsLoaded = ref(false)
-const DEV_MODE = false
+const DEV_MODE = true
 const LIFF_ID = '2008602232-c53WoD3q'
 const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwv3gEiBMZ2YmpIEIuL0v_bWTPSVWiN64g-GbGbvKQD5Xxh1D99jqUnG4Ka4Z1yT7d9/exec'
 

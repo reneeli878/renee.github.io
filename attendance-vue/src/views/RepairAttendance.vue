@@ -30,7 +30,13 @@
         <section class="rounded-[20px] border border-[rgba(219,231,241,0.96)] bg-white/92 p-4 shadow-[0_12px_24px_rgba(25,55,90,0.08)] max-sm:rounded-[18px] max-sm:p-3.5">
           <div class="mb-4">
             <h2 class="text-[1rem] font-bold">申請資料</h2>
-            <p class="mt-1 text-sm text-slate-500">已預留主管與附件欄位，之後可接 GAS 與 LINE 通知。</p>
+            <p class="mt-1 text-sm text-slate-500">送出後會寫入 Google Sheet，並同步顯示在下方申請紀錄。</p>
+          </div>
+
+          <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+            <div><strong>申請人：</strong>{{ currentUser.employeeName || currentUser.name || '未登入' }}</div>
+            <div class="mt-1"><strong>員工編號：</strong>{{ currentUser.employeeCode || '--' }}</div>
+            <div class="mt-1"><strong>部門職稱：</strong>{{ currentUser.dept || '尚未建檔' }}</div>
           </div>
 
           <div class="grid gap-3 md:grid-cols-2">
@@ -95,7 +101,7 @@
             </div>
 
             <div class="md:col-span-2">
-              <label class="mb-1 block text-[0.78rem] font-bold text-slate-500">附件上傳（可選）</label>
+              <label class="mb-1 block text-[0.78rem] font-bold text-slate-500">附件上傳（先記錄檔名）</label>
               <input
                 type="file"
                 @change="handleFileChange"
@@ -115,9 +121,10 @@
           <div class="mt-4 flex gap-2">
             <button
               @click="submitForm"
-              class="rounded-xl bg-[rgb(60,130,191)] px-4 py-3 text-sm font-bold text-white shadow-[0_8px_16px_rgba(60,130,191,0.18)]"
+              :disabled="submitting || loadingUser"
+              class="rounded-xl bg-[rgb(60,130,191)] px-4 py-3 text-sm font-bold text-white shadow-[0_8px_16px_rgba(60,130,191,0.18)] disabled:opacity-50"
             >
-              送出申請
+              {{ submitting ? '送出中...' : '送出申請' }}
             </button>
             <button
               @click="resetForm"
@@ -159,8 +166,15 @@
             </div>
           </div>
 
-          <div class="mb-3 text-xs text-slate-500">
-            共 {{ filteredRepairRecords.length }} 筆
+          <div class="mb-3 flex items-center justify-between gap-2 text-xs text-slate-500">
+            <span>共 {{ filteredRepairRecords.length }} 筆</span>
+            <button
+              @click="fetchRepairRequests"
+              :disabled="loadingRecords"
+              class="rounded-full bg-slate-100 px-3 py-1.5 font-bold text-slate-600 disabled:opacity-50"
+            >
+              {{ loadingRecords ? '更新中...' : '重新整理' }}
+            </button>
           </div>
 
           <div v-if="!filteredRepairRecords.length" class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
@@ -170,7 +184,7 @@
           <div v-else class="grid gap-2.5">
             <div
               v-for="record in filteredRepairRecords"
-              :key="record.id"
+              :key="record.requestId || record.id"
               class="rounded-xl border border-slate-200 bg-[#fbfdff] px-3 py-3"
             >
               <div class="flex items-start justify-between gap-3">
@@ -185,7 +199,7 @@
                   </div>
 
                   <div class="mt-1 text-[0.82rem] leading-[1.55] text-slate-500">
-                    補卡日期：{{ record.date }} {{ record.time }}
+                    補卡日期：{{ record.targetDate }} {{ record.targetTime }}
                   </div>
 
                   <div class="mt-1 text-[0.82rem] leading-[1.55] text-slate-500">
@@ -194,6 +208,10 @@
 
                   <div class="mt-1 text-[0.78rem] leading-[1.5] text-slate-400">
                     主管：{{ record.managerName || '未指定' }}
+                  </div>
+
+                  <div v-if="record.reviewNote" class="mt-1 text-[0.78rem] leading-[1.5] text-slate-400">
+                    審核備註：{{ record.reviewNote }}
                   </div>
                 </div>
 
@@ -213,14 +231,32 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+
+const DEV_MODE = true
+const LIFF_ID = '2008602232-c53WoD3q'
+const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwv3gEiBMZ2YmpIEIuL0v_bWTPSVWiN64g-GbGbvKQD5Xxh1D99jqUnG4Ka4Z1yT7d9/exec'
 
 const managers = [
   { name: '王主任', userId: 'U_MANAGER_001' },
   { name: '李經理', userId: 'U_MANAGER_002' },
   { name: '陳主管', userId: 'U_MANAGER_003' }
 ]
+
+const currentUser = ref({
+  userId: '',
+  name: '',
+  employeeName: '',
+  employeeCode: '',
+  dept: ''
+})
+
+const loadingUser = ref(false)
+const loadingRecords = ref(false)
+const submitting = ref(false)
+const message = ref('')
+const recordFilter = ref('pending')
 
 const form = reactive({
   date: '',
@@ -233,41 +269,7 @@ const form = reactive({
   attachmentName: ''
 })
 
-const message = ref('')
-const recordFilter = ref('pending')
-
-const repairRecords = ref([
-  {
-    id: 1,
-    applyDate: '2026/04/23 09:30',
-    date: '2026-04-22',
-    time: '08:55',
-    type: '上班補卡',
-    reason: '早上進公司時網路異常，未成功送出打卡。',
-    managerName: '王主任',
-    status: '待審核'
-  },
-  {
-    id: 2,
-    applyDate: '2026/04/20 18:40',
-    date: '2026-04-20',
-    time: '18:05',
-    type: '下班補卡',
-    reason: '下班時手機沒電，回家後才發現未打卡。',
-    managerName: '李經理',
-    status: '已核准'
-  },
-  {
-    id: 3,
-    applyDate: '2026/04/18 09:12',
-    date: '2026-04-17',
-    time: '08:59',
-    type: '上班補卡',
-    reason: '手機定位異常，打卡未成功。',
-    managerName: '陳主管',
-    status: '已退回'
-  }
-])
+const repairRecords = ref([])
 
 const filteredRepairRecords = computed(() => {
   if (recordFilter.value === 'pending') {
@@ -277,7 +279,9 @@ const filteredRepairRecords = computed(() => {
   }
 
   return repairRecords.value.filter(
-    (record) => record.status === '已核准' || record.status === '已退回'
+    (record) =>
+      record.status === '已核准' ||
+      record.status === '已退回'
   )
 })
 
@@ -298,28 +302,6 @@ function getStatusClass(status) {
   return 'bg-amber-100 text-amber-700'
 }
 
-function submitForm() {
-  if (!form.date || !form.type || !form.time || !form.reason) {
-    message.value = '請先填寫完整的補打卡資料。'
-    return
-  }
-
-  repairRecords.value.unshift({
-    id: Date.now(),
-    applyDate: new Date().toLocaleString('zh-TW', { hour12: false }),
-    date: form.date,
-    time: form.time,
-    type: form.type,
-    reason: form.reason,
-    managerName: form.managerName,
-    status: '待審核'
-  })
-
-  recordFilter.value = 'pending'
-  message.value = '補打卡申請已加入未審核紀錄。'
-  resetForm()
-}
-
 function resetForm() {
   form.date = ''
   form.type = ''
@@ -330,4 +312,147 @@ function resetForm() {
   form.attachmentFile = null
   form.attachmentName = ''
 }
+
+async function fetchEmployeeProfile(userId) {
+  const response = await fetch(
+    `${GAS_WEB_APP_URL}?action=getEmployee&userId=${encodeURIComponent(userId)}`
+  )
+  const result = await response.json()
+
+  if (!result.ok) {
+    throw new Error(result.message || '讀取員工資料失敗')
+  }
+
+  return result.employee || null
+}
+
+async function initLiff() {
+  loadingUser.value = true
+
+  try {
+    if (DEV_MODE) {
+      currentUser.value = {
+        userId: 'DEV-MODE-USER',
+        name: '測試使用者',
+        employeeName: '測試使用者',
+        employeeCode: 'A001',
+        dept: '營運管理部｜專員'
+      }
+      return
+    }
+
+    if (!window.liff) throw new Error('LIFF SDK 未載入')
+
+    await window.liff.init({ liffId: LIFF_ID })
+
+    if (!window.liff.isLoggedIn()) {
+      window.liff.login()
+      return
+    }
+
+    const profile = await window.liff.getProfile()
+    const employee = await fetchEmployeeProfile(profile.userId)
+
+    const department = employee?.department || ''
+    const title = employee?.title || ''
+    const deptText = `${department}${department && title ? '｜' : ''}${title}`
+
+    currentUser.value = {
+      userId: profile.userId,
+      name: profile.displayName || '',
+      employeeName: employee?.employeeName || profile.displayName || '',
+      employeeCode: employee?.employeeCode || '',
+      dept: deptText || '尚未建檔'
+    }
+  } catch (error) {
+    console.error('LIFF 初始化失敗:', error)
+    message.value = `LIFF 初始化失敗：${error.message}`
+  } finally {
+    loadingUser.value = false
+  }
+}
+
+async function fetchRepairRequests() {
+  if (!currentUser.value.userId) return
+
+  loadingRecords.value = true
+
+  try {
+    const response = await fetch(
+      `${GAS_WEB_APP_URL}?action=getRepairRequests&userId=${encodeURIComponent(currentUser.value.userId)}`
+    )
+    const result = await response.json()
+
+    if (!result.ok || !Array.isArray(result.records)) {
+      throw new Error(result.message || '讀取補打卡申請紀錄失敗')
+    }
+
+    repairRecords.value = result.records
+  } catch (error) {
+    console.error('讀取補打卡申請紀錄失敗:', error)
+    message.value = error.message || '讀取補打卡申請紀錄失敗'
+    repairRecords.value = []
+  } finally {
+    loadingRecords.value = false
+  }
+}
+
+async function submitForm() {
+  if (!form.date || !form.type || !form.time || !form.reason) {
+    message.value = '請先填寫完整的補打卡資料。'
+    return
+  }
+
+  if (!currentUser.value.userId) {
+    message.value = '尚未取得登入者資料，請重新整理後再試。'
+    return
+  }
+
+  submitting.value = true
+
+  try {
+    const payload = {
+      action: 'saveRepairRequest',
+      userId: currentUser.value.userId,
+      employeeCode: currentUser.value.employeeCode,
+      employeeName: currentUser.value.employeeName || currentUser.value.name,
+      type: form.type,
+      targetDate: form.date,
+      targetTime: form.time,
+      reason: form.reason,
+      managerName: form.managerName,
+      managerUserId: form.managerUserId,
+      attachmentName: form.attachmentName
+    }
+
+    const response = await fetch(GAS_WEB_APP_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: JSON.stringify(payload)
+    })
+
+    const result = await response.json()
+
+    if (!result.ok) {
+      throw new Error(result.message || '補打卡申請送出失敗')
+    }
+
+    recordFilter.value = 'pending'
+    message.value = '補打卡申請已送出。'
+    resetForm()
+    await fetchRepairRequests()
+  } catch (error) {
+    console.error('補打卡申請送出失敗:', error)
+    message.value = error.message || '補打卡申請送出失敗'
+  } finally {
+    submitting.value = false
+  }
+}
+
+onMounted(async () => {
+  await initLiff()
+  await fetchRepairRequests()
+})
 </script>
