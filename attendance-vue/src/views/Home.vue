@@ -144,7 +144,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 const recordsLoaded = ref(false)
 const DEV_MODE = false
@@ -476,6 +476,24 @@ async function fetchRecentRecords() {
     console.log('recordsLoaded = true')
     recordsLoaded.value = true
   }
+}
+
+function handleGpsError(error) {
+  const messageMap = {
+    1: '定位權限被拒絕，請先允許位置存取。',
+    2: '目前無法取得定位資訊，請確認 GPS 或網路狀態。',
+    3: '定位逾時，請到空曠處後再試一次。'
+  }
+
+  gpsStatus.value = 'danger'
+  gps.value = {
+    ...gps.value,
+    accuracy: '--',
+    range: '定位失敗',
+    message: messageMap[error.code] || '定位失敗，請稍後再試。'
+  }
+  dashboard.value = { status: '定位失敗' }
+  isSubmitting.value = false
 }
 
 async function updateGpsDisplay(position, actionLabel) {
