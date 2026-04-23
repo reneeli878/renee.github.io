@@ -159,7 +159,7 @@ import { RouterLink } from "vue-router";
 const DEV_MODE = false;
 const LIFF_ID = "2008602232-c53WoD3q";
 const GAS_WEB_APP_URL =
-  "https://script.google.com/macros/s/AKfycbwv3gEiBMZ2YmpIEIuL0v_bWTPSVWiN64g-GbGbvKQD5Xxh1D99jqUnG4Ka4Z1yT7d9/exec";
+  "https://script.google.com/macros/s/AKfycbyGm9PJrnre_sKPuzrnlNGzZ_TBsx10j6bdqD7wEDUmk4G7K4gnGGgpOi6r4Uhusfmj/exec";
 
 const loading = ref(false);
 const errorMessage = ref("");

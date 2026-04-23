@@ -230,7 +230,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
-const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwgC196q1EWvi29XOukqJ9XwFhwCHzudsjwJ7GknhhQnq6kEMs-i_09XRszDPku0Lrx/exec'
+const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyGm9PJrnre_sKPuzrnlNGzZ_TBsx10j6bdqD7wEDUmk4G7K4gnGGgpOi6r4Uhusfmj/exec'
 
 const loading = ref(false)
 const saving = ref(false)

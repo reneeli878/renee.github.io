@@ -151,7 +151,7 @@ import { RouterLink } from 'vue-router'
 const recordsLoaded = ref(false)
 const DEV_MODE = false
 const LIFF_ID = '2008602232-c53WoD3q'
-const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwgC196q1EWvi29XOukqJ9XwFhwCHzudsjwJ7GknhhQnq6kEMs-i_09XRszDPku0Lrx/exec'
+const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyGm9PJrnre_sKPuzrnlNGzZ_TBsx10j6bdqD7wEDUmk4G7K4gnGGgpOi6r4Uhusfmj/exec'
 
 
 const OFFICE_LOCATION = {
