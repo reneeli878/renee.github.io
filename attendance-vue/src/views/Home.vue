@@ -61,7 +61,7 @@
                 <div>
                   <strong class="mb-0.5 block text-[0.88rem] font-bold text-slate-800">{{ user.name }}</strong>
                   <span class="block text-[0.8rem] leading-[1.45] text-slate-500 max-sm:text-[0.78rem]">{{ user.dept }}</span>
-                  <span class="block text-[0.8rem] leading-[1.45] text-slate-500 max-sm:hidden">{{ user.lineId }}</span>
+                  <span class="block text-[0.8rem] leading-[1.45] text-slate-500 max-sm:hidden">{{ user.employeeCode }}</span>
                 </div>
               </div>
 
@@ -149,7 +149,7 @@ import { RouterLink } from 'vue-router'
 
 const DEV_MODE = false
 const LIFF_ID = '2008602232-c53WoD3q'
-const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyTcVKkWP-IBxNl5j5-NIiO3EsS1f9RWZnxhGWndcQcaB9XkOjfKVh33zPGyYrqS1aZ/exec'
+const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwv3gEiBMZ2YmpIEIuL0v_bWTPSVWiN64g-GbGbvKQD5Xxh1D99jqUnG4Ka4Z1yT7d9/exec'
 
 
 const OFFICE_LOCATION = {
@@ -202,8 +202,8 @@ const statusPillClass = computed(() => {
 const user = ref({
   avatar: '員',
   name: '未登入',
-  dept: '部門：',
-  lineId: '員工編號：--',
+  dept: '營運管理部｜專員',
+  employeeCode: '員工編號：--',
   userId: ''
 })
 
@@ -333,14 +333,27 @@ function updateTodayDashboard(records) {
   }
 }
 
+async function fetchEmployeeProfile(userId) {
+  const response = await fetch(
+    `${GAS_WEB_APP_URL}?action=getEmployee&userId=${encodeURIComponent(userId)}`
+  )
+  const result = await response.json()
+
+  if (!result.ok) {
+    throw new Error(result.message || '讀取員工資料失敗')
+  }
+
+  return result.employee || null
+}
+
 async function initLiff() {
   try {
     if (DEV_MODE) {
       user.value = {
         avatar: '測',
         name: '測試使用者',
-        dept: '部門：營運管理部',
-        lineId: 'LINE ID：DEV-MODE',
+        dept: '營運管理部｜專員',
+        employeeCode: '員工編號：A001',
         userId: 'DEV-MODE-USER'
       }
       return
@@ -357,12 +370,18 @@ async function initLiff() {
 
     const profile = await window.liff.getProfile()
     const fullName = profile.displayName || '已登入使用者'
+    const employee = await fetchEmployeeProfile(profile.userId)
+
+    const department = employee?.department || ''
+    const title = employee?.title || ''
+    const deptText = `${department}${department && title ? '｜' : ''}${title}`
 
     user.value = {
       ...user.value,
       avatar: fullName.trim().charAt(0) || '員',
-      name: fullName,
-      lineId: `LINE ID：${profile.userId.slice(0, 8)}...`,
+      name: employee?.employeeName || fullName,
+      dept: deptText || '尚未建檔',
+      employeeCode: `員工編號：${employee?.employeeCode || '--'}`,
       userId: profile.userId
     }
   } catch (error) {
