@@ -176,6 +176,7 @@ const ReviewBlock = defineComponent({
   emits: ['set-filter', 'refresh', 'review'],
   setup(props, { emit }) {
     const notes = ref({})
+const processingId = ref('')
 
     const badgeClass = (status) => {
       if (status === '已核准') return 'bg-green-100 text-green-700'
