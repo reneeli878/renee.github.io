@@ -314,8 +314,8 @@ props.type === 'leave'
         : 'bg-green-50 text-green-700 border border-green-200'
     }`
   }, isLeaveBalanceInsufficient(record)
-    ? `⚠️ 餘額不足：${getLeaveBalanceText(record)}`
-    : `餘額：${getLeaveBalanceText(record)}`
+    ? `⚠️ ：${getLeaveBalanceText(record)}`
+    : `還可以請：${getLeaveBalanceText(record)}`
   )
   : null,
                 h('div', { class: 'mt-1 text-[0.82rem] leading-[1.55] text-slate-500' }, `原因：${record.reason || '--'}`),
@@ -525,11 +525,11 @@ function getLeaveBalanceText(record) {
   }
 
   if (record.leaveType === '病假') {
-    return `病假已用 ${record.sickLeaveUsed || 0} 天`
+    return `病假 ${record.sickLeaveUsed || 0} 天`
   }
 
   if (record.leaveType === '事假') {
-    return `事假已用 ${record.personalLeaveUsed || 0} 天`
+    return `事假 ${record.personalLeaveUsed || 0} 天`
   }
 
   return `${record.leaveType || '假別'} 已用紀錄：${amount || 0} ${record.unit || ''}`
