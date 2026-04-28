@@ -281,22 +281,49 @@ function getRecordSourceText(record) {
   return "";
 }
 
-function calculateWorkMinutesByShiftRule(clockInTime, clockOutTime) {
+function calculateOverlapMinutes(startA, endA, startB, endB) {
+  const start = Math.max(startA.getTime(), startB.getTime());
+  const end = Math.min(endA.getTime(), endB.getTime());
+
+  return Math.max(0, (end - start) / 1000 / 60);
+}
+
+function getDateTimeByTime(dateString, timeText) {
+  const [year, month, day] = String(dateString).split("-").map(Number);
+  const [hour, minute] = String(timeText || "00:00").split(":").map(Number);
+
+  return new Date(year, month - 1, day, hour, minute || 0, 0);
+}
+
+function calculateWorkMinutesByShiftRule(date, clockInTime, clockOutTime) {
   if (!clockInTime || !clockOutTime) return 0;
 
-  const actualIn = normalizeToMinute(clockInTime);
+  const shiftStart = roundToHalfHour(clockInTime);
+  const shiftEnd = addHours(shiftStart, 9);
   const actualOut = normalizeToMinute(clockOutTime);
 
   if (
-    Number.isNaN(actualIn.getTime()) ||
+    Number.isNaN(shiftStart.getTime()) ||
     Number.isNaN(actualOut.getTime()) ||
-    actualOut <= actualIn
+    actualOut <= shiftStart
   ) {
     return 0;
   }
 
-  // 有完整上下班卡，就依公司制度算一天 8 小時
-  return 8 * 60;
+  // 如果實際下班時間已達制度下班時間，算滿 8 小時
+  if (actualOut >= shiftEnd) {
+    return 8 * 60;
+  }
+
+  // 沒有達制度下班時間，就算實際工時
+  let minutes = (actualOut - shiftStart) / 1000 / 60;
+
+  const lunchStart = getDateTimeByTime(date, "12:00");
+  const lunchEnd = getDateTimeByTime(date, "13:00");
+
+  minutes -= calculateOverlapMinutes(shiftStart, actualOut, lunchStart, lunchEnd);
+
+  return Math.max(0, minutes);
 }
 
 function getShiftInfo(clockInTime) {
@@ -354,7 +381,7 @@ const dailyRows = computed(() => {
       const shiftInfo = getShiftInfo(firstIn?.timestamp);
 
       if (firstIn && lastOut) {
-        workMinutes = calculateWorkMinutesByShiftRule(firstIn.timestamp, lastOut.timestamp);
+        workMinutes = calculateWorkMinutesByShiftRule(date, firstIn.timestamp, lastOut.timestamp);
 
         const sourceNotes = [];
 
@@ -385,7 +412,7 @@ const dailyRows = computed(() => {
       } else if (firstIn && !lastOut) {
         statusText = "缺少下班卡";
         badgeClass = "bg-amber-100 text-amber-700";
-        note = `忘記打下班卡囉，制度上班 ${shiftInfo.shiftStartText}，制度下班 ${shiftInfo.shiftEndText}`;
+        note = `忘記打下班卡囉`;
       } else {
         statusText = "資料異常";
         badgeClass = "bg-red-100 text-red-600";
