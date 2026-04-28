@@ -300,28 +300,26 @@ function calculateWorkMinutesByShiftRule(date, clockInTime, clockOutTime) {
 
   const shiftStart = roundToHalfHour(clockInTime);
   const shiftEnd = addHours(shiftStart, 9);
-  const actualOut = normalizeToMinute(clockOutTime);
+  const roundedOut = roundToHalfHour(clockOutTime);
 
   if (
     Number.isNaN(shiftStart.getTime()) ||
-    Number.isNaN(actualOut.getTime()) ||
-    actualOut <= shiftStart
+    Number.isNaN(roundedOut.getTime()) ||
+    roundedOut <= shiftStart
   ) {
     return 0;
   }
 
-  // 如果實際下班時間已達制度下班時間，算滿 8 小時
-  if (actualOut >= shiftEnd) {
+  if (roundedOut >= shiftEnd) {
     return 8 * 60;
   }
 
-  // 沒有達制度下班時間，就算實際工時
-  let minutes = (actualOut - shiftStart) / 1000 / 60;
+  let minutes = (roundedOut - shiftStart) / 1000 / 60;
 
   const lunchStart = getDateTimeByTime(date, "12:00");
   const lunchEnd = getDateTimeByTime(date, "13:00");
 
-  minutes -= calculateOverlapMinutes(shiftStart, actualOut, lunchStart, lunchEnd);
+  minutes -= calculateOverlapMinutes(shiftStart, roundedOut, lunchStart, lunchEnd);
 
   return Math.max(0, minutes);
 }

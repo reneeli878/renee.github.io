@@ -156,6 +156,35 @@
   @refresh="fetchLeaveReviews"
 />
           </section>
+
+          <section
+  v-if="activeTab === 'report'"
+  class="rounded-[20px] border border-[rgba(219,231,241,0.96)] bg-white/92 p-4 shadow-[0_12px_24px_rgba(25,55,90,0.08)]"
+>
+  <div class="mb-3">
+    <h2 class="m-0 text-[1rem] font-bold">月報表下載</h2>
+  </div>
+
+  <div class="grid gap-3 sm:grid-cols-[220px_auto] sm:items-end">
+    <div>
+      <label class="mb-1 block text-[0.78rem] font-bold text-slate-500">
+        報表月份
+      </label>
+      <input
+        v-model="reportMonth"
+        type="month"
+        class="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-[0.92rem] outline-none focus:border-sky-300"
+      />
+    </div>
+
+    <button
+      @click="downloadMonthlyPdf"
+      class="min-h-[48px] rounded-xl bg-[rgb(60,130,191)] px-5 py-3 text-sm font-bold text-white shadow-[0_8px_16px_rgba(60,130,191,0.18)]"
+    >
+      產生月報表(PDF)
+    </button>
+  </div>
+</section>
         </div>
       </div>
     </main>
@@ -166,6 +195,29 @@
 import { computed, defineComponent, h, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { GAS_WEB_APP_URL, LIFF_ID, DEV_MODE } from '@/config'
+
+const reportMonth = ref(new Date().toISOString().slice(0, 7))
+
+async function downloadMonthlyPdf() {
+  try {
+    message.value = '月報表產生中...'
+
+    const response = await fetch(
+      `${GAS_WEB_APP_URL}?action=monthlyReportPdf&month=${encodeURIComponent(reportMonth.value)}`
+    )
+
+    const result = await response.json()
+
+    if (!result.ok) {
+      throw new Error(result.message || '月報表產生失敗')
+    }
+
+    window.open(result.url, '_blank')
+    message.value = '月報表已產生'
+  } catch (error) {
+    message.value = error.message || '月報表下載失敗'
+  }
+}
 
 const ReviewBlock = defineComponent({
   props: {
@@ -382,7 +434,8 @@ props.type === 'leave'
 const tabs = [
   { key: 'employees', label: '員工管理' },
   { key: 'repair', label: '補打卡審核' },
-  { key: 'leave', label: '假單審核' }
+  { key: 'leave', label: '假單審核' },
+  { key: 'report', label: '月報表' }
 ]
 
 const activeTab = ref('employees')
@@ -746,6 +799,8 @@ onMounted(async () => {
     ])
   }
 })
+
+
 </script>
 
 <style scoped>
