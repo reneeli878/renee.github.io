@@ -315,7 +315,7 @@ props.type === 'leave'
     }`
   }, isLeaveBalanceInsufficient(record)
     ? `⚠️ ：${getLeaveBalanceText(record)}`
-    : `還可以請：${getLeaveBalanceText(record)}`
+    : `已請：${getLeaveBalanceText(record)}`
   )
   : null,
                 h('div', { class: 'mt-1 text-[0.82rem] leading-[1.55] text-slate-500' }, `原因：${record.reason || '--'}`),

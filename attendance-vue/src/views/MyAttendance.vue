@@ -124,28 +124,40 @@
           </div>
 
           <div class="grid gap-2.5">
-            <div
-              v-for="record in records"
-              :key="record.id"
-              class="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-[#fbfdff] px-3 py-3"
-            >
-              <div class="min-w-0 flex-1">
-                <strong class="block text-[0.9rem] font-bold text-slate-800">{{
-                  formatRecordDate(record.timestamp)
-                }}</strong>
-                <div class="mt-1 text-[0.8rem] leading-[1.55] text-slate-500">
-                  {{ record.name || user.name }} ・ 距離公司
-                  {{ formatDistance(record.distance) }}
-                </div>
-              </div>
-              <div
-                class="min-w-[72px] whitespace-nowrap rounded-full px-[10px] py-[6px] text-center text-[0.75rem] font-extrabold shadow-sm"
-                :class="getBadgeClass(record.action)"
-              >
-                {{ record.action || "未分類" }}
-              </div>
-            </div>
-          </div>
+  <div
+    v-for="day in dailyRows"
+    :key="day.date"
+    class="flex items-start justify-between gap-3 rounded-xl border border-slate-200 bg-[#fbfdff] px-3 py-3"
+  >
+    <div class="min-w-0 flex-1">
+      <strong class="block text-[0.9rem] font-bold text-slate-800">
+        {{ day.dateText }}
+      </strong>
+
+      <div class="mt-1 text-[0.8rem] leading-[1.55] text-slate-500">
+        上班：{{ day.clockInTime }} ・ 下班：{{ day.clockOutTime }}
+      </div>
+
+      <div class="mt-1 text-[0.8rem] leading-[1.55] text-slate-500">
+        工時：{{ day.workHoursText }}
+      </div>
+
+      <div
+        v-if="day.note"
+        class="mt-1 text-[0.78rem] font-bold text-amber-600"
+      >
+        {{ day.note }}
+      </div>
+    </div>
+
+    <div
+      class="min-w-[88px] whitespace-nowrap rounded-full px-[10px] py-[6px] text-center text-[0.75rem] font-extrabold shadow-sm"
+      :class="day.badgeClass"
+    >
+      {{ day.statusText }}
+    </div>
+  </div>
+</div>
         </section>
       </div>
     </main>
@@ -160,11 +172,13 @@ import {
   LIFF_ID,
   DEV_MODE
 } from '@/config'
+
 const loading = ref(false);
 const errorMessage = ref("");
 const records = ref([]);
 const startDate = ref("");
 const endDate = ref("");
+
 const user = ref({
   name: "未登入",
   userId: "DEV-MODE-USER",
@@ -185,22 +199,54 @@ function getMonthStartString() {
 startDate.value = getMonthStartString();
 endDate.value = getTodayString();
 
-function formatRecordDate(dateString) {
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return dateString || "--";
-  return date.toLocaleString("zh-TW", {
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
+function getDateKey(dateString) {
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+}
+
+function normalizeToMinute(dateValue) {
+  const d = new Date(dateValue);
+  d.setSeconds(0, 0);
+  return d;
+}
+
+function roundToHalfHour(dateValue) {
+  const d = normalizeToMinute(dateValue);
+  const mins = d.getMinutes();
+
+  if (mins < 15) {
+    d.setMinutes(0);
+  } else if (mins < 45) {
+    d.setMinutes(30);
+  } else {
+    d.setHours(d.getHours() + 1);
+    d.setMinutes(0);
+  }
+
+  return d;
+}
+
+function addHours(dateValue, hours) {
+  const d = new Date(dateValue);
+  d.setHours(d.getHours() + hours);
+  return d;
+}
+
+function formatDateOnly(dateString) {
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return "--";
+
+  const week = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"][d.getDay()];
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(
+    d.getDate()
+  ).padStart(2, "0")} ${week}`;
 }
 
 function formatTimeOnly(dateString) {
-  const date = new Date(dateString);
+  const date = normalizeToMinute(dateString);
   if (Number.isNaN(date.getTime())) return "--";
   return date.toLocaleTimeString("zh-TW", {
     hour: "2-digit",
@@ -209,62 +255,179 @@ function formatTimeOnly(dateString) {
   });
 }
 
-function formatDistance(distance) {
-  return distance !== "" && distance !== undefined ? `${distance} m` : "--";
+function formatMinutes(totalMinutes) {
+  if (!totalMinutes || totalMinutes <= 0) return "0 小時 0 分";
+
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = Math.round(totalMinutes % 60);
+
+  return `${hours} 小時 ${mins} 分`;
 }
 
-function getBadgeClass(action) {
-  if (action && action.includes("外出")) return "bg-amber-100 text-amber-700";
-  if (action && action.includes("返回")) return "bg-sky-100 text-sky-700";
-  if (action && action.includes("下班")) return "bg-green-100 text-green-600";
-  return "bg-green-100 text-green-600";
+function isClockInAction(action) {
+  return String(action || "").includes("上班");
 }
 
-const summary = computed(() => {
-  const monthRecords = records.value.filter((record) => {
-    const d = new Date(record.timestamp);
-    const now = new Date();
-    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-  });
+function isClockOutAction(action) {
+  return String(action || "").includes("下班");
+}
 
-  let totalMinutes = 0;
+function getRecordSourceText(record) {
+  const source = String(record?.source || "").trim();
+
+  if (source.includes("補打卡")) return "補打卡";
+  if (source.includes("GPS")) return "GPS打卡";
+
+  return "";
+}
+
+function calculateWorkMinutesByShiftRule(clockInTime, clockOutTime) {
+  if (!clockInTime || !clockOutTime) return 0;
+
+  const actualIn = normalizeToMinute(clockInTime);
+  const actualOut = normalizeToMinute(clockOutTime);
+
+  if (
+    Number.isNaN(actualIn.getTime()) ||
+    Number.isNaN(actualOut.getTime()) ||
+    actualOut <= actualIn
+  ) {
+    return 0;
+  }
+
+  // 有完整上下班卡，就依公司制度算一天 8 小時
+  return 8 * 60;
+}
+
+function getShiftInfo(clockInTime) {
+  if (!clockInTime) {
+    return {
+      shiftStart: null,
+      shiftEnd: null,
+      shiftStartText: "--",
+      shiftEndText: "--",
+    };
+  }
+
+  const shiftStart = roundToHalfHour(clockInTime);
+  const shiftEnd = addHours(shiftStart, 9);
+
+  return {
+    shiftStart,
+    shiftEnd,
+    shiftStartText: formatTimeOnly(shiftStart),
+    shiftEndText: formatTimeOnly(shiftEnd),
+  };
+}
+
+const dailyRows = computed(() => {
   const byDate = {};
+  const todayKey = getTodayString();
 
-  monthRecords.forEach((record) => {
-    const d = new Date(record.timestamp);
-    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  records.value.forEach((record) => {
+    const key = getDateKey(record.timestamp);
+    if (!key) return;
+
     if (!byDate[key]) byDate[key] = [];
     byDate[key].push(record);
   });
 
-  let abnormalCount = 0;
+  return Object.entries(byDate)
+    .map(([date, dayRecords]) => {
+      const sorted = [...dayRecords].sort(
+        (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+      );
 
-  Object.values(byDate).forEach((dayRecords) => {
-    const sorted = dayRecords.sort(
-      (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
-    );
-    const firstIn = sorted.find((r) => r.action === "已上班");
-    const lastOut = [...sorted].reverse().find((r) => r.action === "已下班");
+      const firstIn = sorted.find((r) => isClockInAction(r.action));
+      const lastOut = [...sorted].reverse().find((r) => isClockOutAction(r.action));
 
-    if (firstIn && lastOut) {
-      const diff =
-        (new Date(lastOut.timestamp) - new Date(firstIn.timestamp)) / 1000 / 60;
-      if (diff > 0) {
-        totalMinutes += diff >= 360 ? diff - 60 : diff;
+      const isToday = date === todayKey;
+
+      let statusText = "出勤完成";
+      let badgeClass = "bg-green-100 text-green-600";
+      let note = "";
+      let workMinutes = 0;
+
+      const clockInSource = firstIn ? getRecordSourceText(firstIn) : "";
+      const clockOutSource = lastOut ? getRecordSourceText(lastOut) : "";
+
+      const shiftInfo = getShiftInfo(firstIn?.timestamp);
+
+      if (firstIn && lastOut) {
+        workMinutes = calculateWorkMinutesByShiftRule(firstIn.timestamp, lastOut.timestamp);
+
+        const sourceNotes = [];
+
+    
+
+        if (clockInSource === "補打卡") sourceNotes.push("上班為補打卡");
+        if (clockOutSource === "補打卡") sourceNotes.push("下班為補打卡");
+
+        note = sourceNotes.join("，");
+      } else if (isToday && firstIn && !lastOut) {
+        const now = new Date();
+        const shiftEnd = shiftInfo.shiftEnd;
+
+        if (shiftEnd && now >= shiftEnd) {
+          workMinutes = 8 * 60;
+        } else {
+          const diff = (normalizeToMinute(now) - roundToHalfHour(firstIn.timestamp)) / 1000 / 60;
+          workMinutes = Math.max(0, Math.min(diff, 8 * 60));
+        }
+
+        statusText = "今日出勤中";
+        badgeClass = "bg-blue-100 text-blue-700";
+        note = `今天還沒下班`;
+      } else if (!firstIn && lastOut) {
+        statusText = "缺少上班卡";
+        badgeClass = "bg-red-100 text-red-600";
+        note = "忘記打上班卡囉";
+      } else if (firstIn && !lastOut) {
+        statusText = "缺少下班卡";
+        badgeClass = "bg-amber-100 text-amber-700";
+        note = `忘記打下班卡囉，制度上班 ${shiftInfo.shiftStartText}，制度下班 ${shiftInfo.shiftEndText}`;
+      } else {
+        statusText = "資料異常";
+        badgeClass = "bg-red-100 text-red-600";
+        note = "這天沒有完整上下班紀錄";
       }
-    } else {
-      abnormalCount += 1;
-    }
-  });
 
-  const hours = Math.floor(totalMinutes / 60);
-  const mins = Math.round(totalMinutes % 60);
-  const attendanceDays = Object.keys(byDate).length;
+      return {
+        date,
+        dateText: formatDateOnly(sorted[0]?.timestamp),
+        clockInTime: firstIn ? formatTimeOnly(firstIn.timestamp) : "--",
+        clockOutTime: lastOut ? formatTimeOnly(lastOut.timestamp) : "--",
+        shiftStartTime: shiftInfo.shiftStartText,
+        shiftEndTime: shiftInfo.shiftEndText,
+        workMinutes,
+        workHoursText: formatMinutes(workMinutes),
+        statusText,
+        badgeClass,
+        note,
+        isAbnormal:
+          statusText === "缺少上班卡" ||
+          statusText === "缺少下班卡" ||
+          statusText === "資料異常",
+      };
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+});
+
+const summary = computed(() => {
+  const totalMinutes = dailyRows.value.reduce((sum, day) => {
+    return sum + day.workMinutes;
+  }, 0);
+
+  const attendanceDays = dailyRows.value.filter((day) => {
+    return day.clockInTime !== "--";
+  }).length;
+
+  const abnormalCount = dailyRows.value.filter((day) => day.isAbnormal).length;
 
   return {
-    totalWorkHours: `${hours} 小時 ${mins} 分`,
+    totalWorkHours: formatMinutes(totalMinutes),
     attendanceDays: `${attendanceDays} 天`,
-    abnormalCount: `${abnormalCount} 筆`,
+    abnormalCount: `${abnormalCount} 天`,
   };
 });
 
@@ -287,6 +450,7 @@ async function initLiff() {
   }
 
   const profile = await window.liff.getProfile();
+
   user.value = {
     name: profile.displayName || "已登入使用者",
     userId: profile.userId,

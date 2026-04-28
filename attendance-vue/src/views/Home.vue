@@ -14,7 +14,7 @@
         </div>
 
         <div class="hidden items-center gap-2 text-xs font-bold text-slate-500 sm:flex">
-          <span class="rounded-full bg-[rgba(60,130,191,0.1)] px-3 py-1.5 text-[rgb(31,77,117)]">LINE GPS 打卡</span>
+          <span class="rounded-full bg-[rgba(60,130,191,0.1)] px-3 py-1.5 text-[rgb(31,77,117)]">開啟 GPS 定位打卡</span>
         </div>
       </div>
     </header>
@@ -147,13 +147,53 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
-const recordsLoaded = ref(false)
 import {
   GAS_WEB_APP_URL,
   LIFF_ID,
   DEV_MODE,
   OFFICE_LOCATION
 } from '@/config'
+
+const ATTENDANCE_STATUS = Object.freeze({
+  NOT_CLOCKED_IN: 'NOT_CLOCKED_IN',
+  WORKING: 'WORKING',
+  OUTSIDE: 'OUTSIDE',
+  BACK_TO_OFFICE: 'BACK_TO_OFFICE',
+  COMPLETED: 'COMPLETED',
+  MISSING_CLOCK_IN: 'MISSING_CLOCK_IN',
+  LOCATION_ERROR: 'LOCATION_ERROR',
+  GPS_ERROR: 'GPS_ERROR',
+  UNKNOWN: 'UNKNOWN'
+})
+
+const STATUS_TEXT = Object.freeze({
+  [ATTENDANCE_STATUS.NOT_CLOCKED_IN]: '尚未上班打卡',
+  [ATTENDANCE_STATUS.WORKING]: '上班中',
+  [ATTENDANCE_STATUS.OUTSIDE]: '外出中',
+  [ATTENDANCE_STATUS.BACK_TO_OFFICE]: '已返回公司',
+  [ATTENDANCE_STATUS.COMPLETED]: '下班囉，回家小心~',
+  [ATTENDANCE_STATUS.MISSING_CLOCK_IN]: '缺少上班打卡',
+  [ATTENDANCE_STATUS.LOCATION_ERROR]: '位置異常',
+  [ATTENDANCE_STATUS.GPS_ERROR]: '定位失敗',
+  [ATTENDANCE_STATUS.UNKNOWN]: '狀態未明'
+})
+
+const ACTION_TEXT = Object.freeze({
+  NOT_CLOCKED_IN: '未打卡',
+  CLOCK_IN: '已上班',
+  CLOCK_OUT: '已下班',
+  GO_OUT: '外出中',
+  BACK: '返回公司'
+})
+
+const recordsLoaded = ref(false)
+const now = ref(new Date())
+const isSubmitting = ref(false)
+const gpsStatus = ref('idle')
+const attendanceStatus = ref(ATTENDANCE_STATUS.NOT_CLOCKED_IN)
+
+let timer = null
+let workTimer = null
 
 const actionButtons = [
   { key: 'clockin', icon: '🟢', label: '上班打卡', sub: 'Clock In' },
@@ -169,12 +209,6 @@ const quickLinks = [
   { icon: '🛠️', title: '管理後台', desc: '系統管理', to: '/employee-admin', adminOnly: true }
 ]
 
-const now = ref(new Date())
-const isSubmitting = ref(false)
-const gpsStatus = ref('idle')
-let timer = null
-let workTimer = null
-
 const user = ref({
   avatar: '員',
   name: '未登入',
@@ -185,7 +219,7 @@ const user = ref({
 })
 
 const dashboard = ref({
-  status: '未打卡'
+  status: STATUS_TEXT[ATTENDANCE_STATUS.NOT_CLOCKED_IN]
 })
 
 const gps = ref({
@@ -206,7 +240,7 @@ const recentRecords = ref([
 ])
 
 const latestClockInTime = ref(null)
-const latestAction = ref('未打卡')
+const latestAction = ref(ACTION_TEXT.NOT_CLOCKED_IN)
 
 const visibleQuickLinks = computed(() => {
   return quickLinks.filter((item) => {
@@ -233,11 +267,54 @@ const gpsDotClass = computed(() => {
 })
 
 const statusPillClass = computed(() => {
-  if (latestAction.value === '已下班') return 'bg-slate-200 text-slate-600'
-  if (latestAction.value === '外出中') return 'bg-amber-100 text-amber-700'
-  if (latestAction.value === '已上班' || latestAction.value === '返回公司') return 'bg-green-100 text-green-600'
-  return 'bg-slate-100 text-slate-500'
+  switch (attendanceStatus.value) {
+    case ATTENDANCE_STATUS.WORKING:
+      return 'bg-green-100 text-green-600'
+    case ATTENDANCE_STATUS.OUTSIDE:
+      return 'bg-amber-100 text-amber-700'
+    case ATTENDANCE_STATUS.BACK_TO_OFFICE:
+      return 'bg-blue-100 text-blue-600'
+    case ATTENDANCE_STATUS.COMPLETED:
+      return 'bg-slate-200 text-slate-600'
+    case ATTENDANCE_STATUS.MISSING_CLOCK_IN:
+    case ATTENDANCE_STATUS.LOCATION_ERROR:
+    case ATTENDANCE_STATUS.GPS_ERROR:
+      return 'bg-red-100 text-red-600'
+    default:
+      return 'bg-slate-100 text-slate-500'
+  }
 })
+
+function setAttendanceStatus(status) {
+  attendanceStatus.value = status
+  dashboard.value = {
+    status: STATUS_TEXT[status] || STATUS_TEXT[ATTENDANCE_STATUS.UNKNOWN]
+  }
+}
+
+function syncStatusByAction(actionLabel) {
+  if (actionLabel === ACTION_TEXT.CLOCK_IN) {
+    setAttendanceStatus(ATTENDANCE_STATUS.WORKING)
+    return
+  }
+
+  if (actionLabel === ACTION_TEXT.CLOCK_OUT) {
+    setAttendanceStatus(ATTENDANCE_STATUS.COMPLETED)
+    return
+  }
+
+  if (actionLabel === ACTION_TEXT.GO_OUT) {
+    setAttendanceStatus(ATTENDANCE_STATUS.OUTSIDE)
+    return
+  }
+
+  if (actionLabel === ACTION_TEXT.BACK) {
+    setAttendanceStatus(ATTENDANCE_STATUS.BACK_TO_OFFICE)
+    return
+  }
+
+  setAttendanceStatus(ATTENDANCE_STATUS.UNKNOWN)
+}
 
 function formatRecordDate(dateString) {
   const date = new Date(dateString)
@@ -286,7 +363,9 @@ function isToday(dateString) {
 }
 
 function updateWorkingDuration() {
-  if (!latestClockInTime.value || latestAction.value !== '已上班') return
+  if (!latestClockInTime.value) return
+  if (attendanceStatus.value !== ATTENDANCE_STATUS.WORKING) return
+
   const start = new Date(latestClockInTime.value)
   if (Number.isNaN(start.getTime())) return
 
@@ -304,11 +383,13 @@ function updateWorkingDuration() {
 
 function isActionAllowed(actionKey) {
   const current = latestAction.value
-  if (current === '未打卡') return actionKey === 'clockin'
-  if (current === '已上班') return actionKey === 'clockout' || actionKey === 'goout'
-  if (current === '外出中') return actionKey === 'back'
-  if (current === '返回公司') return actionKey === 'clockout' || actionKey === 'goout'
-  if (current === '已下班') return false
+
+  if (current === ACTION_TEXT.NOT_CLOCKED_IN) return actionKey === 'clockin'
+  if (current === ACTION_TEXT.CLOCK_IN) return actionKey === 'clockout' || actionKey === 'goout'
+  if (current === ACTION_TEXT.GO_OUT) return actionKey === 'back'
+  if (current === ACTION_TEXT.BACK) return actionKey === 'clockout' || actionKey === 'goout'
+  if (current === ACTION_TEXT.CLOCK_OUT) return false
+
   return true
 }
 
@@ -317,28 +398,65 @@ function getActionSubtext(item) {
 }
 
 function applyTodayReset() {
-  latestAction.value = '未打卡'
+  latestAction.value = ACTION_TEXT.NOT_CLOCKED_IN
   latestClockInTime.value = null
-  dashboard.value = { status: '未打卡' }
+  setAttendanceStatus(ATTENDANCE_STATUS.NOT_CLOCKED_IN)
 }
 
 function updateTodayDashboard(records) {
   const todayRecords = records.filter((record) => isToday(record.timestamp))
+
   if (!todayRecords.length) {
     applyTodayReset()
     return
   }
 
   const latestRecord = todayRecords[0]
-  latestAction.value = latestRecord.action || '未打卡'
+  const latestActionText = latestRecord?.action || ACTION_TEXT.NOT_CLOCKED_IN
 
-  if (latestRecord.action === '已上班') {
-    latestClockInTime.value = latestRecord.timestamp
+  const hasClockIn = todayRecords.some((record) => record.action === ACTION_TEXT.CLOCK_IN)
+  const hasClockOut = todayRecords.some((record) => record.action === ACTION_TEXT.CLOCK_OUT)
+
+  latestAction.value = latestActionText
+
+  if (hasClockIn && !hasClockOut) {
+    const firstClockIn = todayRecords
+      .filter((record) => record.action === ACTION_TEXT.CLOCK_IN)
+      .at(-1)
+
+    latestClockInTime.value = firstClockIn?.timestamp || latestRecord.timestamp || null
+
+    if (latestActionText === ACTION_TEXT.GO_OUT) {
+      setAttendanceStatus(ATTENDANCE_STATUS.OUTSIDE)
+      return
+    }
+
+    if (latestActionText === ACTION_TEXT.BACK) {
+      setAttendanceStatus(ATTENDANCE_STATUS.BACK_TO_OFFICE)
+      return
+    }
+
+    latestAction.value = ACTION_TEXT.CLOCK_IN
+    setAttendanceStatus(ATTENDANCE_STATUS.WORKING)
     updateWorkingDuration()
-  } else {
-    latestClockInTime.value = null
-    dashboard.value = { status: latestRecord.action || '未打卡' }
+    return
   }
+
+  if (hasClockIn && hasClockOut) {
+    latestClockInTime.value = null
+    latestAction.value = ACTION_TEXT.CLOCK_OUT
+    setAttendanceStatus(ATTENDANCE_STATUS.COMPLETED)
+    return
+  }
+
+  if (!hasClockIn && hasClockOut) {
+    latestClockInTime.value = null
+    latestAction.value = ACTION_TEXT.CLOCK_OUT
+    setAttendanceStatus(ATTENDANCE_STATUS.MISSING_CLOCK_IN)
+    return
+  }
+
+  applyTodayReset()
 }
 
 async function fetchEmployeeProfile(userId) {
@@ -403,10 +521,10 @@ async function initLiff() {
     const fullName = profile.displayName || '已登入使用者'
     let employee = await fetchEmployeeProfile(profile.userId)
 
-if (!employee) {
-  await autoCreateEmployee(profile)
-  employee = await fetchEmployeeProfile(profile.userId)
-}
+    if (!employee) {
+      await autoCreateEmployee(profile)
+      employee = await fetchEmployeeProfile(profile.userId)
+    }
 
     const department = employee?.department || ''
     const title = employee?.title || ''
@@ -529,7 +647,7 @@ async function updateGpsDisplay(position, actionLabel) {
 
     if (!isInRange) {
       gpsStatus.value = 'danger'
-      dashboard.value = { status: '位置異常' }
+      setAttendanceStatus(ATTENDANCE_STATUS.LOCATION_ERROR)
       return
     }
 
@@ -560,15 +678,18 @@ async function updateGpsDisplay(position, actionLabel) {
     }
 
     latestAction.value = actionLabel
-    if (actionLabel === '已上班') {
+
+    if (actionLabel === ACTION_TEXT.CLOCK_IN) {
       latestClockInTime.value = new Date().toISOString()
-    } else {
+    }
+
+    if (actionLabel === ACTION_TEXT.CLOCK_OUT) {
       latestClockInTime.value = null
     }
 
     gpsStatus.value = 'success'
     gps.value = { ...gps.value, message: `${actionLabel} 打卡成功 ✅` }
-    dashboard.value = { status: actionLabel }
+    syncStatusByAction(actionLabel)
 
     await fetchRecentRecords()
   } catch (error) {
@@ -599,7 +720,7 @@ function handleGpsError(error) {
     range: '定位失敗',
     message: messageMap[error.code] || '定位失敗，請稍後再試。'
   }
-  dashboard.value = { status: '定位失敗' }
+  setAttendanceStatus(ATTENDANCE_STATUS.GPS_ERROR)
   isSubmitting.value = false
 }
 
@@ -608,10 +729,10 @@ function handleAction(type) {
   if (!isActionAllowed(type) || isSubmitting.value) return
 
   const actionMap = {
-    clockin: '已上班',
-    clockout: '已下班',
-    goout: '外出中',
-    back: '返回公司'
+    clockin: ACTION_TEXT.CLOCK_IN,
+    clockout: ACTION_TEXT.CLOCK_OUT,
+    goout: ACTION_TEXT.GO_OUT,
+    back: ACTION_TEXT.BACK
   }
 
   if (!navigator.geolocation) {
