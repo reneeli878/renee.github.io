@@ -198,26 +198,6 @@ import { GAS_WEB_APP_URL, LIFF_ID, DEV_MODE } from '@/config'
 
 const reportMonth = ref(new Date().toISOString().slice(0, 7))
 
-async function downloadMonthlyPdf() {
-  try {
-    message.value = '月報表產生中...'
-
-    const response = await fetch(
-      `${GAS_WEB_APP_URL}?action=monthlyReportPdf&month=${encodeURIComponent(reportMonth.value)}`
-    )
-
-    const result = await response.json()
-
-    if (!result.ok) {
-      throw new Error(result.message || '月報表產生失敗')
-    }
-
-    window.open(result.url, '_blank')
-    message.value = '月報表已產生'
-  } catch (error) {
-    message.value = error.message || '月報表下載失敗'
-  }
-}
 
 const ReviewBlock = defineComponent({
   props: {
@@ -367,7 +347,7 @@ props.type === 'leave'
     }`
   }, isLeaveBalanceInsufficient(record)
     ? `⚠️ ：${getLeaveBalanceText(record)}`
-    : `已請：${getLeaveBalanceText(record)}`
+    : `累積天數：${getLeaveBalanceText(record)}`
   )
   : null,
                 h('div', { class: 'mt-1 text-[0.82rem] leading-[1.55] text-slate-500' }, `原因：${record.reason || '--'}`),
@@ -800,6 +780,211 @@ onMounted(async () => {
   }
 })
 
+
+async function downloadMonthlyPdf() {
+  try {
+    message.value = '月報表產生中...'
+
+    const response = await fetch(
+      `${GAS_WEB_APP_URL}?action=monthlyReport&month=${encodeURIComponent(reportMonth.value)}`
+    )
+
+    const result = await response.json()
+
+    if (!result.ok) {
+      throw new Error(result.message || '月報表資料讀取失敗')
+    }
+
+    const summaryRows = result.summary || []
+    const detailRows = result.details || []
+
+    const summaryHtml = summaryRows.map(row => `
+      <tr>
+        <td>${row.employeeCode || '-'}</td>
+        <td>${row.employeeName || '-'}</td>
+        <td>${row.department || '-'}</td>
+        <td>${row.attendanceDays || 0} 天</td>
+        <td>${row.totalWorkHours || '0 小時 0 分'}</td>
+        <td>${row.abnormalDays || 0} 天</td>
+        <td>${row.repairDays || 0} 天</td>
+        <td>${row.leaveDays || 0} 天</td>
+      </tr>
+    `).join('')
+
+    const detailGroups = detailRows.reduce((groups, row) => {
+  const key = `${row.employeeCode || ''}_${row.employeeName || ''}`
+
+  if (!groups[key]) {
+    groups[key] = {
+      employeeCode: row.employeeCode || '-',
+      employeeName: row.employeeName || '-',
+      department: row.department || '-',
+      rows: []
+    }
+  }
+
+  groups[key].rows.push(row)
+  return groups
+}, {})
+
+const detailHtml = Object.values(detailGroups).map(group => `
+  <section class="employee-page">
+    <h2>每日出勤明細</h2>
+    <div class="employee-meta">
+      ${group.employeeCode}｜${group.employeeName}｜${group.department}
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>日期</th>
+          <th>上班</th>
+          <th>下班</th>
+          <th>工時</th>
+          <th>狀態</th>
+          <th>補打卡</th>
+          <th>請假</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${group.rows.map(row => `
+          <tr>
+            <td>${row.date || '-'}</td>
+            <td>${row.clockInTime || '--'}</td>
+            <td>${row.clockOutTime || '--'}</td>
+            <td>${row.workHours || '0 小時 0 分'}</td>
+            <td>${row.status || '-'}</td>
+            <td>${row.repairNote || '-'}</td>
+            <td>${row.leaveNote || '-'}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </section>
+`).join('')
+
+    const html = `
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>出勤月報表-${result.month}</title>
+<style>
+body{
+  font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif;
+  padding:24px;
+  color:#0f172a;
+}
+h1{
+  color:#1f4d75;
+  margin-bottom:6px;
+}
+h2{
+  margin-top:30px;
+  color:#1f4d75;
+}
+.meta{
+  color:#64748b;
+  font-size:13px;
+  margin-bottom:8px;
+}
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:10px;
+  font-size:12px;
+}
+th{
+  background:#1f4d75;
+  color:#fff;
+  border:1px solid #dbe7f1;
+  padding:8px;
+}
+td{
+  border:1px solid #dbe7f1;
+  padding:7px;
+  text-align:center;
+}
+tr:nth-child(even) td{
+  background:#f8fbfe;
+}
+.note{
+  margin-top:18px;
+  font-size:11px;
+  color:#64748b;
+}
+.page-break{
+  page-break-before:always;
+}
+
+.employee-page {
+  page-break-before: always;
+}
+
+.employee-meta {
+  margin-bottom: 10px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@media print{
+ body{padding:10mm;}
+}
+</style>
+</head>
+
+<body>
+
+<h1>LUFTQI 出勤月報表</h1>
+<div class="meta">月份：${result.month}</div>
+<div class="meta">產生時間：${new Date().toLocaleString('zh-TW',{hour12:false})}</div>
+
+<h2>一、月報總表</h2>
+
+<table>
+<thead>
+<tr>
+<th>員工編號</th>
+<th>姓名</th>
+<th>部門</th>
+<th>出勤天數</th>
+<th>總工時</th>
+<th>需補卡天數</th>
+<th>補打卡天數</th>
+<th>請假天數</th>
+</tr>
+</thead>
+<tbody>
+${summaryHtml || '<tr><td colspan="8">本月無資料</td></tr>'}
+</tbody>
+</table>
+
+${detailHtml || '<div class="page-break"><h2>二、每日出勤明細</h2><p>本月無資料</p></div>'}
+
+<div class="note">
+備註：工時依整點 / 半點制度計算，午休 12:00-13:00 自動扣除。
+</div>
+
+</body>
+</html>
+`
+
+    const printWindow = window.open('', '_blank')
+    printWindow.document.write(html)
+    printWindow.document.close()
+
+    printWindow.onload = () => {
+      printWindow.focus()
+      printWindow.print()
+    }
+
+    message.value = '月報表已開啟，可另存 PDF'
+
+  } catch (error) {
+    message.value = error.message || '月報表產生失敗'
+  }
+}
 
 </script>
 
