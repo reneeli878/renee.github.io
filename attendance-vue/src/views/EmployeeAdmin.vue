@@ -482,20 +482,32 @@ const filteredEmployees = computed(() => {
   })
 })
 
-const filteredRepairReviews = computed(() => {
+const filteredLeaveReviews = computed(() => {
+  const selfId = String(currentUser.value.userId || '').trim()
+
+  const records = leaveReviews.value.filter(
+    record => String(record.userId || '').trim() !== selfId
+  )
+
   if (reviewFilter.value === 'pending') {
-    return repairReviews.value.filter((record) => record.status === '待審核')
+    return records.filter(record => record.status === '待審核')
   }
 
-  return repairReviews.value.filter((record) => record.status === '已核准' || record.status === '已退回')
+  return records.filter(
+    record => record.status === '已核准' || record.status === '已退回'
+  )
 })
 
-const filteredLeaveReviews = computed(() => {
+const filteredRepairReviews = computed(() => {
+  const records = repairReviews.value.filter((record) =>
+    String(record.userId || '').trim() !== String(currentUser.value.userId || '').trim()
+  )
+
   if (reviewFilter.value === 'pending') {
-    return leaveReviews.value.filter((record) => record.status === '待審核')
+    return records.filter((record) => record.status === '待審核')
   }
 
-  return leaveReviews.value.filter((record) => record.status === '已核准' || record.status === '已退回')
+  return records.filter((record) => record.status === '已核准' || record.status === '已退回')
 })
 
 function formatDeptTitle(employee) {
