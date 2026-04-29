@@ -310,6 +310,18 @@ import {
   DEV_MODE
 } from '@/config'
 
+const REQUEST_STATUS = {
+  PENDING: '待審核',
+  APPROVED: '已核准',
+  REJECTED: '已退回',
+  CANCELED: '已取消'
+}
+
+const REVIEW_FILTER = {
+  PENDING: 'pending',
+  REVIEWED: 'reviewed'
+}
+
 const managers = ref([])
 
 const currentUser = ref({
@@ -324,7 +336,7 @@ const loadingUser = ref(false)
 const loadingRecords = ref(false)
 const submitting = ref(false)
 const message = ref('')
-const recordFilter = ref('pending')
+const recordFilter = ref(REVIEW_FILTER.PENDING)
 
 const form = reactive({
   type: '',
@@ -357,18 +369,24 @@ const leaveSummary = computed(() => {
 })
 
 const filteredLeaveRecords = computed(() => {
-  if (recordFilter.value === 'pending') {
+  if (recordFilter.value === REVIEW_FILTER.PENDING) {
     return leaveRecords.value.filter(
-      (record) => record.status === '待審核'
+      (record) => record.status === REQUEST_STATUS.PENDING
     )
   }
 
   return leaveRecords.value.filter(
     (record) =>
-      record.status === '已核准' ||
-      record.status === '已退回'
+      record.status === REQUEST_STATUS.APPROVED ||
+      record.status === REQUEST_STATUS.REJECTED
   )
 })
+
+function getStatusClass(status) {
+  if (status === REQUEST_STATUS.APPROVED) return 'bg-green-100 text-green-700'
+  if (status === REQUEST_STATUS.REJECTED) return 'bg-red-100 text-red-700'
+  return 'bg-amber-100 text-amber-700'
+}
 
 function syncManagerName() {
   const manager = managers.value.find(
@@ -411,11 +429,6 @@ function handleFileChange(event) {
   reader.readAsDataURL(file)
 }
 
-function getStatusClass(status) {
-  if (status === '已核准') return 'bg-green-100 text-green-700'
-  if (status === '已退回') return 'bg-red-100 text-red-700'
-  return 'bg-amber-100 text-amber-700'
-}
 
 function resetForm() {
   form.leaveType = ''

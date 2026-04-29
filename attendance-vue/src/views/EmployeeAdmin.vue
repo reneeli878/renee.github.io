@@ -196,19 +196,177 @@ import { computed, defineComponent, h, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { GAS_WEB_APP_URL, LIFF_ID, DEV_MODE } from '@/config'
 
-const reportMonth = ref(new Date().toISOString().slice(0, 7))
+const REQUEST_STATUS = {
+  PENDING: '待審核',
+  APPROVED: '已核准',
+  REJECTED: '已退回',
+  CANCELED: '已取消'
+}
 
+const REVIEW_FILTER = {
+  PENDING: 'pending',
+  REVIEWED: 'reviewed'
+}
+
+const reportMonth = ref(new Date().toISOString().slice(0, 7))
+const activeTab = ref('employees')
+const reviewFilter = ref(REVIEW_FILTER.PENDING)
+const message = ref('')
+const loadingUser = ref(false)
+
+const currentUser = ref({
+  userId: '',
+  name: '',
+  employeeName: '',
+  employeeCode: '',
+  dept: '',
+  role: 'staff'
+})
+
+const keyword = ref('')
+const statusFilter = ref('all')
+const employees = ref([])
+const loadingEmployees = ref(false)
+const savingEmployee = ref(false)
+const editingMode = ref('create')
+
+const repairReviews = ref([])
+const leaveReviews = ref([])
+const loadingRepairReviews = ref(false)
+const loadingLeaveReviews = ref(false)
+
+const tabs = [
+  { key: 'employees', label: '員工管理' },
+  { key: 'repair', label: '補打卡審核' },
+  { key: 'leave', label: '假單審核' },
+  { key: 'report', label: '月報表' }
+]
+
+const canAccessAdmin = computed(() =>
+  currentUser.value.role === 'manager' || currentUser.value.role === 'admin'
+)
+
+const emptyForm = () => ({
+  employeeCode: '',
+  userId: '',
+  lineName: '',
+  employeeName: '',
+  department: '',
+  title: '',
+  hireDate: '',
+  status: '在職',
+  role: 'staff',
+  managerId: ''
+})
+
+const form = ref(emptyForm())
+
+function isReviewedStatus(status) {
+  return status === REQUEST_STATUS.APPROVED || status === REQUEST_STATUS.REJECTED
+}
+
+function isSelfRecord(record) {
+  return String(record.userId || '').trim() === String(currentUser.value.userId || '').trim()
+}
+
+function filterReviewRecords(records) {
+  const withoutSelf = records.filter(record => !isSelfRecord(record))
+
+  if (reviewFilter.value === REVIEW_FILTER.PENDING) {
+    return withoutSelf.filter(record => record.status === REQUEST_STATUS.PENDING)
+  }
+
+  return withoutSelf.filter(record => isReviewedStatus(record.status))
+}
+
+const filteredEmployees = computed(() => {
+  const q = keyword.value.trim().toLowerCase()
+
+  return employees.value.filter((employee) => {
+    const passStatus = statusFilter.value === 'all' || (employee.status || '') === statusFilter.value
+    if (!passStatus) return false
+    if (!q) return true
+
+    return [
+      employee.employeeCode,
+      employee.lineName,
+      employee.employeeName,
+      employee.department,
+      employee.title,
+      employee.userId
+    ].filter(Boolean).join(' ').toLowerCase().includes(q)
+  })
+})
+
+const filteredRepairReviews = computed(() => filterReviewRecords(repairReviews.value))
+const filteredLeaveReviews = computed(() => filterReviewRecords(leaveReviews.value))
+
+function formatDeptTitle(employee) {
+  const department = employee.department || ''
+  const title = employee.title || ''
+  return `${department}${department && title ? '｜' : ''}${title}`
+}
+
+function resetForm() {
+  form.value = emptyForm()
+  editingMode.value = 'create'
+}
+
+function clearEmployeeSearch() {
+  keyword.value = ''
+  statusFilter.value = 'all'
+}
+
+function editEmployee(employee) {
+  form.value = { ...emptyForm(), ...employee }
+  editingMode.value = 'edit'
+}
+
+function getLeaveBalanceText(record) {
+  const amount = Number(record.amount || 0)
+
+  if (record.leaveType === '特休') {
+    const remain = Number(record.annualLeaveDefault || 0) - Number(record.annualLeaveUsed || 0)
+    return `特休剩餘 ${remain} 天，核准後剩 ${remain - amount} 天`
+  }
+
+  if (record.leaveType === '補休') {
+    const remain = Number(record.compOffDefault || 0) - Number(record.compOffUsed || 0)
+    return `補休剩餘 ${remain} 小時，核准後剩 ${remain - amount} 小時`
+  }
+
+  if (record.leaveType === '病假') return `病假 ${record.sickLeaveUsed || 0} 天`
+  if (record.leaveType === '事假') return `事假 ${record.personalLeaveUsed || 0} 天`
+
+  return `${record.leaveType || '假別'} 已用紀錄：${amount || 0} ${record.unit || ''}`
+}
+
+function isLeaveBalanceInsufficient(record) {
+  const amount = Number(record.amount || 0)
+
+  if (record.leaveType === '特休') {
+    const remain = Number(record.annualLeaveDefault || 0) - Number(record.annualLeaveUsed || 0)
+    return amount > remain
+  }
+
+  if (record.leaveType === '補休') {
+    const remain = Number(record.compOffDefault || 0) - Number(record.compOffUsed || 0)
+    return amount > remain
+  }
+
+  return false
+}
 
 const ReviewBlock = defineComponent({
   props: {
-  title: String,
-  type: String,
-  records: Array,
-  filter: String,
-  loading: Boolean,
-  onReview: Function
-},
-emits: ['set-filter', 'refresh', 'reviewed'],
+    title: String,
+    type: String,
+    records: Array,
+    filter: String,
+    loading: Boolean,
+    onReview: Function
+  },
+  emits: ['set-filter', 'refresh', 'reviewed'],
   setup(props, { emit }) {
     const notes = ref({})
     const processingId = ref('')
@@ -217,47 +375,47 @@ emits: ['set-filter', 'refresh', 'reviewed'],
     const toast = ref('')
 
     const badgeClass = (status) => {
-      if (status === '已核准') return 'bg-green-100 text-green-700'
-      if (status === '已退回') return 'bg-red-100 text-red-700'
+      if (status === REQUEST_STATUS.APPROVED) return 'bg-green-100 text-green-700'
+      if (status === REQUEST_STATUS.REJECTED) return 'bg-red-100 text-red-700'
       return 'bg-amber-100 text-amber-700'
     }
 
     async function submitReview(record, status) {
-  if (processingId.value) return
+      if (processingId.value) return
 
-  const payload = {
-    type: props.type,
-    requestId: record.requestId,
-    status,
-    reviewNote: notes.value[record.requestId] || ''
-  }
+      const payload = {
+        type: props.type,
+        requestId: record.requestId,
+        status,
+        reviewNote: notes.value[record.requestId] || ''
+      }
 
-  processingId.value = record.requestId
-  successId.value = ''
-  successStatus.value = ''
-  toast.value = ''
+      processingId.value = record.requestId
+      successId.value = ''
+      successStatus.value = ''
+      toast.value = ''
 
-  try {
-    const updatedRecord = await props.onReview(payload)
+      try {
+        const updatedRecord = await props.onReview(payload)
 
-    successId.value = record.requestId
-    successStatus.value = status
-    toast.value = status === '已核准' ? '已核准申請' : '已退回申請'
+        successId.value = record.requestId
+        successStatus.value = status
+        toast.value = status === REQUEST_STATUS.APPROVED ? '已核准申請' : '已退回申請'
 
-    await new Promise(resolve => setTimeout(resolve, 700))
+        await new Promise(resolve => setTimeout(resolve, 700))
 
-    emit('reviewed', {
-      payload,
-      record: updatedRecord
-    })
+        emit('reviewed', {
+          payload,
+          record: updatedRecord
+        })
 
-    toast.value = ''
-    successId.value = ''
-    successStatus.value = ''
-  } finally {
-    processingId.value = ''
-  }
-}
+        toast.value = ''
+        successId.value = ''
+        successStatus.value = ''
+      } finally {
+        processingId.value = ''
+      }
+    }
 
     const renderSpinner = () => h('span', {
       class: 'mr-1 inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/60 border-t-white align-[-2px]'
@@ -267,7 +425,7 @@ emits: ['set-filter', 'refresh', 'reviewed'],
       toast.value
         ? h('div', {
           class: `mb-3 rounded-xl px-3 py-2 text-sm font-bold shadow-sm ${
-            successStatus.value === '已核准'
+            successStatus.value === REQUEST_STATUS.APPROVED
               ? 'border border-green-200 bg-green-50 text-green-700'
               : 'border border-red-200 bg-red-50 text-red-700'
           }`
@@ -278,17 +436,17 @@ emits: ['set-filter', 'refresh', 'reviewed'],
         h('h2', { class: 'm-0 text-[1rem] font-bold' }, props.title),
         h('div', { class: 'flex items-center gap-2' }, [
           h('button', {
-            onClick: () => emit('set-filter', 'pending'),
+            onClick: () => emit('set-filter', REVIEW_FILTER.PENDING),
             class: `rounded-full px-3 py-1.5 text-xs font-bold ${
-              props.filter === 'pending'
+              props.filter === REVIEW_FILTER.PENDING
                 ? 'bg-[rgb(31,77,117)] text-white'
                 : 'bg-slate-100 text-slate-500'
             }`
           }, '未審核'),
           h('button', {
-            onClick: () => emit('set-filter', 'reviewed'),
+            onClick: () => emit('set-filter', REVIEW_FILTER.REVIEWED),
             class: `rounded-full px-3 py-1.5 text-xs font-bold ${
-              props.filter === 'reviewed'
+              props.filter === REVIEW_FILTER.REVIEWED
                 ? 'bg-[rgb(31,77,117)] text-white'
                 : 'bg-slate-100 text-slate-500'
             }`
@@ -312,9 +470,9 @@ emits: ['set-filter', 'refresh', 'reviewed'],
 
           const isProcessing = processingId.value === record.requestId
           const isSuccess = successId.value === record.requestId
-          const successClass = successStatus.value === '已核准'
-  ? 'border-green-300 bg-green-50/70 translate-x-6 opacity-0 scale-[0.98]'
-  : 'border-red-300 bg-red-50/70 translate-x-6 opacity-0 scale-[0.98]'
+          const successClass = successStatus.value === REQUEST_STATUS.APPROVED
+            ? 'border-green-300 bg-green-50/70 translate-x-6 opacity-0 scale-[0.98]'
+            : 'border-red-300 bg-red-50/70 translate-x-6 opacity-0 scale-[0.98]'
 
           return h('div', {
             key: record.requestId,
@@ -332,24 +490,24 @@ emits: ['set-filter', 'refresh', 'reviewed'],
                   h('strong', { class: 'text-[0.95rem] font-bold text-slate-800' }, title),
                   h('span', { class: 'text-[0.78rem] text-slate-400' }, record.applyDate || '')
                 ]),
-
                 h('div', { class: 'mt-1 text-[0.82rem] leading-[1.55] text-slate-500' }, `申請人：${record.employeeName || '--'}（${record.employeeCode || '--'}）`),
-
                 props.type === 'repair'
                   ? h('div', { class: 'mt-1 text-[0.82rem] leading-[1.55] text-slate-500' }, `補卡日期：${record.targetDate || '--'} ${record.targetTime || ''}`)
                   : h('div', { class: 'mt-1 text-[0.82rem] leading-[1.55] text-slate-500' }, `區間：${record.startDate || '--'} ~ ${record.endDate || '--'}｜${record.amount || '--'} ${record.unit || ''}`),
-props.type === 'leave'
-  ? h('div', {
-    class: `mt-2 rounded-xl px-3 py-2 text-[0.8rem] font-bold ${
-      isLeaveBalanceInsufficient(record)
-        ? 'bg-red-50 text-red-700 border border-red-200'
-        : 'bg-green-50 text-green-700 border border-green-200'
-    }`
-  }, isLeaveBalanceInsufficient(record)
-    ? `⚠️ ：${getLeaveBalanceText(record)}`
-    : `累積天數：${getLeaveBalanceText(record)}`
-  )
-  : null,
+
+                props.type === 'leave'
+                  ? h('div', {
+                    class: `mt-2 rounded-xl px-3 py-2 text-[0.8rem] font-bold ${
+                      isLeaveBalanceInsufficient(record)
+                        ? 'bg-red-50 text-red-700 border border-red-200'
+                        : 'bg-green-50 text-green-700 border border-green-200'
+                    }`
+                  }, isLeaveBalanceInsufficient(record)
+                    ? `⚠️ ：${getLeaveBalanceText(record)}`
+                    : `累積天數：${getLeaveBalanceText(record)}`
+                  )
+                  : null,
+
                 h('div', { class: 'mt-1 text-[0.82rem] leading-[1.55] text-slate-500' }, `原因：${record.reason || '--'}`),
 
                 record.attachmentUrl
@@ -368,7 +526,7 @@ props.type === 'leave'
                   ])
                   : null,
 
-                props.filter === 'reviewed'
+                props.filter === REVIEW_FILTER.REVIEWED
                   ? h('div', { class: 'mt-2 rounded-xl bg-slate-50 px-3 py-2 text-[0.8rem] text-slate-500' }, [
                     h('div', `審核時間：${record.reviewTime || '--'}`),
                     h('div', `審核備註：${record.reviewNote || '無'}`)
@@ -385,7 +543,7 @@ props.type === 'leave'
                     h('div', { class: 'mt-2 flex gap-2' }, [
                       h('button', {
                         disabled: isProcessing || !!processingId.value,
-                        onClick: () => submitReview(record, '已核准'),
+                        onClick: () => submitReview(record, REQUEST_STATUS.APPROVED),
                         class: 'rounded-xl bg-green-600 px-3 py-2 text-xs font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50'
                       }, [
                         isProcessing ? renderSpinner() : null,
@@ -393,7 +551,7 @@ props.type === 'leave'
                       ]),
                       h('button', {
                         disabled: isProcessing || !!processingId.value,
-                        onClick: () => submitReview(record, '已退回'),
+                        onClick: () => submitReview(record, REQUEST_STATUS.REJECTED),
                         class: 'rounded-xl bg-red-500 px-3 py-2 text-xs font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50'
                       }, [
                         isProcessing ? renderSpinner() : null,
@@ -404,132 +562,13 @@ props.type === 'leave'
               ]),
               h('span', {
                 class: `whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold ${badgeClass(record.status)}`
-              }, record.status || '待審核')
+              }, record.status || REQUEST_STATUS.PENDING)
             ])
           ])
         }))
     ])
   }
 })
-const tabs = [
-  { key: 'employees', label: '員工管理' },
-  { key: 'repair', label: '補打卡審核' },
-  { key: 'leave', label: '假單審核' },
-  { key: 'report', label: '月報表' }
-]
-
-const activeTab = ref('employees')
-const reviewFilter = ref('pending')
-const message = ref('')
-const loadingUser = ref(false)
-
-const currentUser = ref({
-  userId: '',
-  name: '',
-  employeeName: '',
-  employeeCode: '',
-  dept: '',
-  role: 'staff'
-})
-
-const canAccessAdmin = computed(() => {
-  return currentUser.value.role === 'manager' || currentUser.value.role === 'admin'
-})
-
-const keyword = ref('')
-const statusFilter = ref('all')
-const employees = ref([])
-const loadingEmployees = ref(false)
-const savingEmployee = ref(false)
-const editingMode = ref('create')
-
-const repairReviews = ref([])
-const leaveReviews = ref([])
-const loadingRepairReviews = ref(false)
-const loadingLeaveReviews = ref(false)
-
-const emptyForm = () => ({
-  employeeCode: '',
-  userId: '',
-  lineName: '',
-  employeeName: '',
-  department: '',
-  title: '',
-  hireDate: '',
-  status: '在職',
-  role: 'staff',
-  managerId: ''
-})
-
-const form = ref(emptyForm())
-
-const filteredEmployees = computed(() => {
-  const q = keyword.value.trim().toLowerCase()
-
-  return employees.value.filter((employee) => {
-    const passStatus = statusFilter.value === 'all' || (employee.status || '') === statusFilter.value
-    if (!passStatus) return false
-    if (!q) return true
-
-    return [
-      employee.employeeCode,
-      employee.lineName,
-      employee.employeeName,
-      employee.department,
-      employee.title,
-      employee.userId
-    ].filter(Boolean).join(' ').toLowerCase().includes(q)
-  })
-})
-
-const filteredLeaveReviews = computed(() => {
-  const selfId = String(currentUser.value.userId || '').trim()
-
-  const records = leaveReviews.value.filter(
-    record => String(record.userId || '').trim() !== selfId
-  )
-
-  if (reviewFilter.value === 'pending') {
-    return records.filter(record => record.status === '待審核')
-  }
-
-  return records.filter(
-    record => record.status === '已核准' || record.status === '已退回'
-  )
-})
-
-const filteredRepairReviews = computed(() => {
-  const records = repairReviews.value.filter((record) =>
-    String(record.userId || '').trim() !== String(currentUser.value.userId || '').trim()
-  )
-
-  if (reviewFilter.value === 'pending') {
-    return records.filter((record) => record.status === '待審核')
-  }
-
-  return records.filter((record) => record.status === '已核准' || record.status === '已退回')
-})
-
-function formatDeptTitle(employee) {
-  const department = employee.department || ''
-  const title = employee.title || ''
-  return `${department}${department && title ? '｜' : ''}${title}`
-}
-
-function resetForm() {
-  form.value = emptyForm()
-  editingMode.value = 'create'
-}
-
-function clearEmployeeSearch() {
-  keyword.value = ''
-  statusFilter.value = 'all'
-}
-
-function editEmployee(employee) {
-  form.value = { ...emptyForm(), ...employee }
-  editingMode.value = 'edit'
-}
 
 function applyReviewedRecord({ payload, record }) {
   const updatedRecord = {
@@ -539,61 +578,15 @@ function applyReviewedRecord({ payload, record }) {
     reviewTime: record?.reviewTime || new Date().toLocaleString('zh-TW', { hour12: false })
   }
 
-  if (payload.type === 'repair') {
-    repairReviews.value = repairReviews.value.map((item) =>
-      item.requestId === payload.requestId
-        ? { ...item, ...updatedRecord }
-        : item
-    )
-  } else {
-    leaveReviews.value = leaveReviews.value.map((item) =>
-      item.requestId === payload.requestId
-        ? { ...item, ...updatedRecord }
-        : item
-    )
-  }
+  const targetList = payload.type === 'repair' ? repairReviews : leaveReviews
+
+  targetList.value = targetList.value.map((item) =>
+    item.requestId === payload.requestId
+      ? { ...item, ...updatedRecord }
+      : item
+  )
 
   message.value = `已更新為 ${payload.status}`
-}
-
-function getLeaveBalanceText(record) {
-  const amount = Number(record.amount || 0)
-
-  if (record.leaveType === '特休') {
-    const remain = Number(record.annualLeaveDefault || 0) - Number(record.annualLeaveUsed || 0)
-    return `特休剩餘 ${remain} 天，核准後剩 ${remain - amount} 天`
-  }
-
-  if (record.leaveType === '補休') {
-    const remain = Number(record.compOffDefault || 0) - Number(record.compOffUsed || 0)
-    return `補休剩餘 ${remain} 小時，核准後剩 ${remain - amount} 小時`
-  }
-
-  if (record.leaveType === '病假') {
-    return `病假 ${record.sickLeaveUsed || 0} 天`
-  }
-
-  if (record.leaveType === '事假') {
-    return `事假 ${record.personalLeaveUsed || 0} 天`
-  }
-
-  return `${record.leaveType || '假別'} 已用紀錄：${amount || 0} ${record.unit || ''}`
-}
-
-function isLeaveBalanceInsufficient(record) {
-  const amount = Number(record.amount || 0)
-
-  if (record.leaveType === '特休') {
-    const remain = Number(record.annualLeaveDefault || 0) - Number(record.annualLeaveUsed || 0)
-    return amount > remain
-  }
-
-  if (record.leaveType === '補休') {
-    const remain = Number(record.compOffDefault || 0) - Number(record.compOffUsed || 0)
-    return amount > remain
-  }
-
-  return false
 }
 
 async function fetchEmployeeProfile(userId) {
@@ -686,7 +679,6 @@ async function saveEmployee() {
     })
 
     const result = await response.json()
-
     if (!result.ok) throw new Error(result.message || '儲存失敗')
 
     message.value = '員工資料已儲存。'
@@ -767,10 +759,7 @@ async function handleReview(payload) {
     })
 
     const result = await response.json()
-
-    if (!result.ok) {
-      throw new Error(result.message || '審核失敗')
-    }
+    if (!result.ok) throw new Error(result.message || '審核失敗')
 
     return result.record
   } catch (error) {
@@ -779,19 +768,14 @@ async function handleReview(payload) {
   }
 }
 
-
-onMounted(async () => {
-  await initLiff()
-
-  if (canAccessAdmin.value) {
-    await Promise.all([
-      fetchEmployees(),
-      fetchRepairReviews(),
-      fetchLeaveReviews()
-    ])
-  }
-})
-
+function safeText(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;')
+}
 
 async function downloadMonthlyPdf() {
   try {
@@ -802,122 +786,128 @@ async function downloadMonthlyPdf() {
     )
 
     const result = await response.json()
-
-    if (!result.ok) {
-      throw new Error(result.message || '月報表資料讀取失敗')
-    }
+    if (!result.ok) throw new Error(result.message || '月報表資料讀取失敗')
 
     const summaryRows = result.summary || []
     const detailRows = result.details || []
 
     const summaryHtml = summaryRows.map(row => `
       <tr>
-        <td>${row.employeeCode || '-'}</td>
-        <td>${row.employeeName || '-'}</td>
-        <td>${row.department || '-'}</td>
-        <td>${row.attendanceDays || 0} 天</td>
-        <td>${row.totalWorkHours || '0 小時 0 分'}</td>
-        <td>${row.abnormalDays || 0} 天</td>
-        <td>${row.repairDays || 0} 天</td>
-        <td>${row.leaveDays || 0} 天</td>
+        <td>${safeText(row.employeeCode || '-')}</td>
+        <td>${safeText(row.employeeName || '-')}</td>
+        <td>${safeText(row.department || '-')}</td>
+        <td>${safeText(row.attendanceDays || 0)} 天</td>
+        <td>${safeText(row.totalWorkHours || '0 小時 0 分')}</td>
+        <td>${safeText(row.abnormalDays || 0)} 天</td>
+        <td>${safeText(row.repairDays || 0)} 天</td>
+        <td>${safeText(row.leaveDays || 0)} 天</td>
       </tr>
     `).join('')
 
     const detailGroups = detailRows.reduce((groups, row) => {
-  const key = `${row.employeeCode || ''}_${row.employeeName || ''}`
+      const key = `${row.employeeCode || ''}_${row.employeeName || ''}`
 
-  if (!groups[key]) {
-    groups[key] = {
-      employeeCode: row.employeeCode || '-',
-      employeeName: row.employeeName || '-',
-      department: row.department || '-',
-      rows: []
-    }
-  }
+      if (!groups[key]) {
+        groups[key] = {
+          employeeCode: row.employeeCode || '-',
+          employeeName: row.employeeName || '-',
+          department: row.department || '-',
+          rows: []
+        }
+      }
 
-  groups[key].rows.push(row)
-  return groups
-}, {})
+      groups[key].rows.push(row)
+      return groups
+    }, {})
 
-const detailHtml = Object.values(detailGroups).map(group => `
-  <section class="employee-page">
-    <h2>每日出勤明細</h2>
-    <div class="employee-meta">
-      ${group.employeeCode}｜${group.employeeName}｜${group.department}
-    </div>
+    const detailHtml = Object.values(detailGroups).map(group => `
+      <section class="employee-page">
+        <h2>每日出勤明細</h2>
+        <div class="employee-meta">
+          ${safeText(group.employeeCode)}｜${safeText(group.employeeName)}｜${safeText(group.department)}
+        </div>
 
-    <table>
-      <colgroup>
-  <col style="width:12%">
-  <col style="width:10%">
-  <col style="width:10%">
-  <col style="width:10%">
-  <col style="width:12%">
-  <col style="width:14%">
-  <col style="width:14%">
-  <col style="width:18%">
-  </colgroup>
-      <thead>
-        <tr>
-          <th>日期</th>
-          <th>上班</th>
-          <th>下班</th>
-          <th>工時</th>
-          <th>狀態</th>
-          <th>補打卡</th>
-          <th>請假</th>
-          <th>備註</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${group.rows.map(row => `
-          <tr>
-            <td>${row.date || '-'}</td>
-            <td>${row.clockInTime || '--'}</td>
-            <td>${row.clockOutTime || '--'}</td>
-            <td>${row.workHours || '0 小時 0 分'}</td>
-            <td>${row.status || '-'}</td>
-            <td>${row.repairNote || '-'}</td>
-            <td>${row.leaveNote || '-'}</td>
-            <td>${row.reviewNote || '-'}</td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  </section>
-`).join('')
+        <table>
+          <colgroup>
+            <col style="width:12%">
+            <col style="width:10%">
+            <col style="width:10%">
+            <col style="width:10%">
+            <col style="width:12%">
+            <col style="width:18%">
+            <col style="width:18%">
+            <col style="width:10%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>上班</th>
+              <th>下班</th>
+              <th>工時</th>
+              <th>狀態</th>
+              <th>補卡說明</th>
+              <th>請假</th>
+              <th>備註</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${group.rows.map(row => `
+              <tr>
+                <td>${safeText(row.date || '-')}</td>
+                <td>${safeText(row.clockInTime || '--')}</td>
+                <td>${safeText(row.clockOutTime || '--')}</td>
+                <td>${safeText(row.workHours || '0 小時 0 分')}</td>
+                <td>${safeText(row.status || '-')}</td>
+                <td>${safeText(row.repairNote || '-')}</td>
+                <td>${safeText(row.leaveNote || '-')}</td>
+                <td>${safeText(row.reviewNote || '-')}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </section>
+    `).join('')
 
     const html = `
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
-<title>出勤月報表-${result.month}</title>
+<title>出勤月報表-${safeText(result.month)}</title>
 <style>
+@page {
+  size: A4 landscape;
+  margin: 10mm;
+}
+
 body{
   font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif;
   padding:24px;
   color:#0f172a;
 }
+
 h1{
   color:#1f4d75;
   margin-bottom:6px;
 }
+
 h2{
   margin-top:30px;
   color:#1f4d75;
 }
+
 .meta{
   color:#64748b;
   font-size:13px;
   margin-bottom:8px;
 }
+
 table{
   width:100%;
   border-collapse:collapse;
   margin-top:10px;
   font-size:12px;
-  table-layout: fixed;
+  table-layout:fixed;
 }
 
 th, td{
@@ -933,39 +923,40 @@ th{
   background:#1f4d75;
   color:#fff;
 }
+
 tr:nth-child(even) td{
   background:#f8fbfe;
 }
+
 .note{
   margin-top:18px;
   font-size:11px;
   color:#64748b;
 }
-.page-break{
+
+.employee-page{
+  break-before:page;
   page-break-before:always;
+  break-inside:avoid;
+  page-break-inside:avoid;
 }
 
-.employee-page {
-  page-break-before: always;
-}
-
-.employee-meta {
-  margin-bottom: 10px;
-  color: #64748b;
-  font-size: 13px;
-  font-weight: 700;
+.employee-meta{
+  margin-bottom:10px;
+  color:#64748b;
+  font-size:13px;
+  font-weight:700;
 }
 
 @media print{
- body{padding:10mm;}
+  body{padding:10mm;}
 }
 </style>
 </head>
 
 <body>
-
 <h1>LUFTQI 出勤月報表</h1>
-<div class="meta">月份：${result.month}</div>
+<div class="meta">月份：${safeText(result.month)}</div>
 <div class="meta">產生時間：${new Date().toLocaleString('zh-TW',{hour12:false})}</div>
 
 <h2>一、月報總表</h2>
@@ -998,32 +989,48 @@ ${summaryHtml || '<tr><td colspan="8">本月無資料</td></tr>'}
 </tbody>
 </table>
 
-${detailHtml || '<div class="page-break"><h2>二、每日出勤明細</h2><p>本月無資料</p></div>'}
+${detailHtml || '<section class="employee-page"><h2>二、每日出勤明細</h2><p>本月無資料</p></section>'}
 
 <div class="note">
 備註：工時依整點 / 半點制度計算，午休 12:00-13:00。
 </div>
-
 </body>
 </html>
 `
 
     const printWindow = window.open('', '_blank')
+
+    if (!printWindow) {
+      message.value = '手機瀏覽器阻擋開新視窗，請改用外部瀏覽器或電腦下載月報表。'
+      return
+    }
+
+    printWindow.document.open()
     printWindow.document.write(html)
     printWindow.document.close()
 
-    printWindow.onload = () => {
+    setTimeout(() => {
       printWindow.focus()
       printWindow.print()
-    }
+    }, 500)
 
     message.value = '月報表已開啟，可另存 PDF'
-
   } catch (error) {
     message.value = error.message || '月報表產生失敗'
   }
 }
 
+onMounted(async () => {
+  await initLiff()
+
+  if (canAccessAdmin.value) {
+    await Promise.all([
+      fetchEmployees(),
+      fetchRepairReviews(),
+      fetchLeaveReviews()
+    ])
+  }
+})
 </script>
 
 <style scoped>

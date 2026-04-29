@@ -385,8 +385,8 @@ const dailyRows = computed(() => {
 
     
 
-        if (clockInSource === "補打卡") sourceNotes.push("上班為補打卡");
-        if (clockOutSource === "補打卡") sourceNotes.push("下班為補打卡");
+        if (clockInSource === "補打卡") sourceNotes.push("🛠 上班補卡");
+        if (clockOutSource === "補打卡") sourceNotes.push("🛠 下班補卡");
 
         note = sourceNotes.join("，");
       } else if (isToday && firstIn && !lastOut) {
@@ -402,7 +402,7 @@ const dailyRows = computed(() => {
 
         statusText = "今日出勤中";
         badgeClass = "bg-blue-100 text-blue-700";
-        note = `今天還沒下班`;
+        note = `今天還沒下班，預計 ${shiftInfo.shiftEndText} 下班`;
       } else if (!firstIn && lastOut) {
         statusText = "缺少上班卡";
         badgeClass = "bg-red-100 text-red-600";
