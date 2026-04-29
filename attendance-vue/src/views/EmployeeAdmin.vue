@@ -835,6 +835,16 @@ const detailHtml = Object.values(detailGroups).map(group => `
     </div>
 
     <table>
+      <colgroup>
+  <col style="width:12%">
+  <col style="width:10%">
+  <col style="width:10%">
+  <col style="width:10%">
+  <col style="width:12%">
+  <col style="width:14%">
+  <col style="width:14%">
+  <col style="width:18%">
+  </colgroup>
       <thead>
         <tr>
           <th>日期</th>
@@ -844,6 +854,7 @@ const detailHtml = Object.values(detailGroups).map(group => `
           <th>狀態</th>
           <th>補打卡</th>
           <th>請假</th>
+          <th>備註</th>
         </tr>
       </thead>
       <tbody>
@@ -856,6 +867,7 @@ const detailHtml = Object.values(detailGroups).map(group => `
             <td>${row.status || '-'}</td>
             <td>${row.repairNote || '-'}</td>
             <td>${row.leaveNote || '-'}</td>
+            <td>${row.reviewNote || '-'}</td>
           </tr>
         `).join('')}
       </tbody>
@@ -893,17 +905,21 @@ table{
   border-collapse:collapse;
   margin-top:10px;
   font-size:12px;
+  table-layout: fixed;
 }
+
+th, td{
+  border:1px solid #dbe7f1;
+  padding:7px 6px;
+  text-align:center;
+  vertical-align:middle;
+  word-break:break-word;
+  overflow-wrap:break-word;
+}
+
 th{
   background:#1f4d75;
   color:#fff;
-  border:1px solid #dbe7f1;
-  padding:8px;
-}
-td{
-  border:1px solid #dbe7f1;
-  padding:7px;
-  text-align:center;
 }
 tr:nth-child(even) td{
   background:#f8fbfe;
@@ -943,6 +959,16 @@ tr:nth-child(even) td{
 <h2>一、月報總表</h2>
 
 <table>
+<colgroup>
+  <col style="width:12%">
+  <col style="width:10%">
+  <col style="width:10%">
+  <col style="width:10%">
+  <col style="width:12%">
+  <col style="width:14%">
+  <col style="width:14%">
+  <col style="width:18%">
+</colgroup>
 <thead>
 <tr>
 <th>員工編號</th>
@@ -963,7 +989,7 @@ ${summaryHtml || '<tr><td colspan="8">本月無資料</td></tr>'}
 ${detailHtml || '<div class="page-break"><h2>二、每日出勤明細</h2><p>本月無資料</p></div>'}
 
 <div class="note">
-備註：工時依整點 / 半點制度計算，午休 12:00-13:00 自動扣除。
+備註：工時依整點 / 半點制度計算，午休 12:00-13:00。
 </div>
 
 </body>
