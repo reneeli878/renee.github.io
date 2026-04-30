@@ -30,7 +30,6 @@
         <section class="rounded-[20px] border border-[rgba(219,231,241,0.96)] bg-white/92 p-4 shadow-[0_12px_24px_rgba(25,55,90,0.08)] max-sm:rounded-[18px] max-sm:p-3.5">
           <div class="mb-4">
             <h2 class="text-[1rem] font-bold">請假資料</h2>
-            <p class="mt-1 text-sm text-slate-500">送出後會寫入 Google Sheet，並同步顯示在下方申請紀錄。</p>
           </div>
 
           <div class="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
@@ -127,8 +126,8 @@
     v-model="form.unit"
     class="w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-[0.92rem] outline-none focus:border-sky-300"
   >
-    <option value="天">天</option>
     <option value="小時">小時</option>
+    <option value="天">天</option>
   </select>
 </div>
 
@@ -145,7 +144,7 @@
             </div>
 
             <div class="md:col-span-2">
-              <label class="mb-1 block text-[0.78rem] font-bold text-slate-500">附件上傳（先記錄檔名）</label>
+              <label class="mb-1 block text-[0.78rem] font-bold text-slate-500">附件上傳</label>
               <input
                 type="file"
                 @change="handleFileChange"
@@ -159,8 +158,31 @@
 
           <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
             <div><strong>主管姓名：</strong>{{ form.managerName || '尚未選擇' }}</div>
-            <div class="mt-1"><strong>主管 LINE User ID：</strong>{{ form.managerUserId || '尚未選擇' }}</div>
             <div class="mt-1"><strong>申請摘要：</strong>{{ leaveSummary }}</div>
+            <div v-if="leaveBalance && (form.leaveType === '特休' || form.leaveType === '補休')"
+     class="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm">
+
+  <div>
+    <strong>目前剩餘：</strong>
+    {{ formatHoursToText(
+      form.leaveType === '特休'
+        ? leaveBalance.annualLeaveRemain
+        : leaveBalance.compOffRemain
+    ) }}
+  </div>
+
+  <div class="mt-1">
+    <strong>本次申請：</strong>
+    {{ formatHoursToText(currentLeaveHours) }}
+  </div>
+
+  <div class="mt-1"
+       :class="remainingAfterApply < 0 ? 'text-red-500 font-bold' : ''">
+    <strong>送出後剩餘：</strong>
+    {{ formatHoursToText(remainingAfterApply) }}
+  </div>
+
+</div>
           </div>
 
           <div class="mt-4 flex gap-2">
@@ -316,7 +338,7 @@ const REQUEST_STATUS = {
   REJECTED: '已退回',
   CANCELED: '已取消'
 }
-
+const leaveBalance = ref(null)
 const REVIEW_FILTER = {
   PENDING: 'pending',
   REVIEWED: 'reviewed'
@@ -339,13 +361,16 @@ const message = ref('')
 const recordFilter = ref(REVIEW_FILTER.PENDING)
 
 const form = reactive({
-  type: '',
-  targetDate: '',
-  targetTime: '',
+  leaveType: '',
+  unit: '天',
+  startDate: '',
+  endDate: '',
+  startTime: '',
+  endTime: '',
+  amount: 1,
   reason: '',
   managerName: '',
   managerUserId: '',
-
   attachmentFile: null,
   attachmentName: '',
   attachmentBase64: '',
@@ -354,8 +379,32 @@ const form = reactive({
 
 const leaveRecords = ref([])
 
+function calculateDays(startDate, endDate) {
+  if (!startDate || !endDate) return 0
+
+  const start = new Date(`${startDate}T00:00:00`)
+  const end = new Date(`${endDate}T00:00:00`)
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0
+  if (end < start) return 0
+
+  const diff = (end - start) / (1000 * 60 * 60 * 24)
+
+  return diff + 1
+}
+
+function getLeaveAmountHours() {
+  const amount = Number(form.amount || 0)
+
+  if (form.unit === '天') {
+    return amount * 8
+  }
+
+  return amount
+}
+
 const leaveSummary = computed(() => {
-  if (!form.leaveType) return '尚未填寫完整請假資料'
+  if (!form.leaveType) return '請假原因未填'
 
   const dateRange = form.startDate && form.endDate
     ? `${form.startDate} ~ ${form.endDate}`
@@ -365,7 +414,9 @@ const leaveSummary = computed(() => {
     ? ` ${form.startTime || '--:--'} ~ ${form.endTime || '--:--'}`
     : ''
 
-  return `${form.leaveType}｜${dateRange}${timeRange}｜${form.amount || 0}${form.unit}`
+  const hours = getLeaveAmountHours()
+
+  return `${form.leaveType}｜${dateRange}${timeRange}｜共 ${hours} 小時`
 })
 
 const filteredLeaveRecords = computed(() => {
@@ -387,6 +438,8 @@ function getStatusClass(status) {
   if (status === REQUEST_STATUS.REJECTED) return 'bg-red-100 text-red-700'
   return 'bg-amber-100 text-amber-700'
 }
+
+
 
 function syncManagerName() {
   const manager = managers.value.find(
@@ -555,10 +608,21 @@ async function fetchLeaveRequests() {
 }
 
 async function submitForm() {
+
+  if (remainingAfterApply.value < 0) {
+  message.value = '剩餘時數不足，無法申請'
+  return
+}
   if (!form.leaveType || !form.startDate || !form.endDate || !form.reason || !form.amount) {
     message.value = '請先填寫完整的請假資料。'
     return
   }
+
+  // ⭐ 病假必須有附件
+if (form.leaveType === '病假' && !form.attachmentBase64) {
+  message.value = '病假必須上傳附件（例如診斷證明）'
+  return
+}
 
   if (form.unit === '小時' && (!form.startTime || !form.endTime)) {
     message.value = '請先填寫完整的請假時間。'
@@ -573,18 +637,19 @@ async function submitForm() {
   submitting.value = true
 
   try {
+    const leaveAmountHours = getLeaveAmountHours()
     const payload = {
       action: 'saveLeaveRequest',
       userId: currentUser.value.userId,
       employeeCode: currentUser.value.employeeCode,
       employeeName: currentUser.value.employeeName || currentUser.value.name,
       leaveType: form.leaveType,
-      unit: form.unit,
+      unit: '小時',
       startDate: form.startDate,
       endDate: form.endDate,
       startTime: form.startTime,
       endTime: form.endTime,
-      amount: form.amount,
+      amount: leaveAmountHours,
       reason: form.reason,
       managerName: form.managerName,
       managerUserId: form.managerUserId,
@@ -618,10 +683,57 @@ async function submitForm() {
     submitting.value = false
   }
 }
+async function fetchLeaveBalance() {
+  if (!currentUser.value.userId) return
+
+  const res = await fetch(
+    `${GAS_WEB_APP_URL}?action=getLeaveBalance&userId=${currentUser.value.userId}`
+  )
+  const result = await res.json()
+
+  if (result.ok) {
+    leaveBalance.value = result.balance
+  }
+}
+
+function formatHoursToText(hours) {
+  const total = Math.max(0, Number(hours) || 0)
+  const d = Math.floor(total / 8)
+  const h = total % 8
+
+  if (d && h) return `${d} 天 ${h} 小時`
+  if (d) return `${d} 天`
+  return `${h} 小時`
+}
+
+const currentLeaveHours = computed(() => {
+  if (!form.amount) return 0
+
+  if (form.unit === '天') {
+    return Number(form.amount) * 8
+  }
+
+  return Number(form.amount)
+})
+
+const remainingAfterApply = computed(() => {
+  if (!leaveBalance.value) return 0
+
+  if (form.leaveType === '特休') {
+    return leaveBalance.value.annualLeaveRemain - currentLeaveHours.value
+  }
+
+  if (form.leaveType === '補休') {
+    return leaveBalance.value.compOffRemain - currentLeaveHours.value
+  }
+
+  return 0
+})
 
 onMounted(async () => {
   await initLiff()
   await fetchManagers()
   await fetchLeaveRequests()
+  await fetchLeaveBalance()
 })
 </script>

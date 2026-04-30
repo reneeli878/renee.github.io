@@ -139,7 +139,7 @@
 
             <div class="md:col-span-2">
               <label class="mb-1 block text-[0.78rem] font-bold text-slate-500"
-                >附件上傳（先記錄檔名）</label
+                >附件上傳</label
               >
               <input
                 type="file"
@@ -156,9 +156,6 @@
             class="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600"
           >
             <div><strong>主管姓名：</strong>{{ form.managerName || "尚未選擇" }}</div>
-            <div class="mt-1">
-              <strong>主管 LINE User ID：</strong>{{ form.managerUserId || "尚未選擇" }}
-            </div>
           </div>
 
           <div class="mt-4 flex gap-2">

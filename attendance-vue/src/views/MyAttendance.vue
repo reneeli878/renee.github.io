@@ -213,6 +213,35 @@ function normalizeToMinute(dateValue) {
   return d;
 }
 
+function roundClockIn(dateValue) {
+  const d = normalizeToMinute(dateValue)
+  const mins = d.getMinutes()
+
+  if (mins === 0 || mins === 30) return d
+
+  if (mins < 30) {
+    d.setMinutes(30)
+  } else {
+    d.setHours(d.getHours() + 1)
+    d.setMinutes(0)
+  }
+
+  return d
+}
+
+function roundClockOut(dateValue) {
+  const d = normalizeToMinute(dateValue)
+  const mins = d.getMinutes()
+
+  if (mins < 30) {
+    d.setMinutes(0)
+  } else {
+    d.setMinutes(30)
+  }
+
+  return d
+}
+
 function roundToHalfHour(dateValue) {
   const d = normalizeToMinute(dateValue);
   const mins = d.getMinutes();
@@ -298,9 +327,9 @@ function getDateTimeByTime(dateString, timeText) {
 function calculateWorkMinutesByShiftRule(date, clockInTime, clockOutTime) {
   if (!clockInTime || !clockOutTime) return 0;
 
-  const shiftStart = roundToHalfHour(clockInTime);
+  const shiftStart = roundClockIn(clockInTime);
   const shiftEnd = addHours(shiftStart, 9);
-  const roundedOut = roundToHalfHour(clockOutTime);
+  const roundedOut = roundClockOut(clockOutTime);
 
   if (
     Number.isNaN(shiftStart.getTime()) ||
@@ -334,7 +363,7 @@ function getShiftInfo(clockInTime) {
     };
   }
 
-  const shiftStart = roundToHalfHour(clockInTime);
+  const shiftStart = roundClockIn(clockInTime);
   const shiftEnd = addHours(shiftStart, 9);
 
   return {

@@ -181,7 +181,7 @@
       @click="downloadMonthlyPdf"
       class="min-h-[48px] rounded-xl bg-[rgb(60,130,191)] px-5 py-3 text-sm font-bold text-white shadow-[0_8px_16px_rgba(60,130,191,0.18)]"
     >
-      產生月報表(PDF)
+      產生月報表PDF (請使用電腦以便下載列印)
     </button>
   </div>
 </section>
@@ -322,21 +322,31 @@ function editEmployee(employee) {
   editingMode.value = 'edit'
 }
 
+function formatHoursToDayHourText(hours) {
+  const total = Math.max(0, Number(hours) || 0)
+  const days = Math.floor(total / 8)
+  const remainHours = total % 8
+
+  if (days > 0 && remainHours > 0) return `${days} 天 ${remainHours} 小時`
+  if (days > 0) return `${days} 天`
+  return `${remainHours} 小時`
+}
+
 function getLeaveBalanceText(record) {
   const amount = Number(record.amount || 0)
 
   if (record.leaveType === '特休') {
-    const remain = Number(record.annualLeaveDefault || 0) - Number(record.annualLeaveUsed || 0)
-    return `特休剩餘 ${remain} 天，核准後剩 ${remain - amount} 天`
-  }
+  const remain = Number(record.annualLeaveDefault || 0) - Number(record.annualLeaveUsed || 0)
+  return `特休剩餘 ${formatHoursToDayHourText(remain)}，核准後剩 ${formatHoursToDayHourText(remain - amount)}`
+}
 
-  if (record.leaveType === '補休') {
-    const remain = Number(record.compOffDefault || 0) - Number(record.compOffUsed || 0)
-    return `補休剩餘 ${remain} 小時，核准後剩 ${remain - amount} 小時`
-  }
+if (record.leaveType === '補休') {
+  const remain = Number(record.compOffDefault || 0) - Number(record.compOffUsed || 0)
+  return `補休剩餘 ${formatHoursToDayHourText(remain)}，核准後剩 ${formatHoursToDayHourText(remain - amount)}`
+}
 
-  if (record.leaveType === '病假') return `病假 ${record.sickLeaveUsed || 0} 天`
-  if (record.leaveType === '事假') return `事假 ${record.personalLeaveUsed || 0} 天`
+  if (record.leaveType === '病假') return `病假 ${record.sickLeaveUsed || 0} 小時`
+  if (record.leaveType === '事假') return `事假 ${record.personalLeaveUsed || 0} 小時`
 
   return `${record.leaveType || '假別'} 已用紀錄：${amount || 0} ${record.unit || ''}`
 }
@@ -504,7 +514,7 @@ const ReviewBlock = defineComponent({
                     }`
                   }, isLeaveBalanceInsufficient(record)
                     ? `⚠️ ：${getLeaveBalanceText(record)}`
-                    : `累積天數：${getLeaveBalanceText(record)}`
+                    : `累積時數：${getLeaveBalanceText(record)}`
                   )
                   : null,
 
@@ -852,13 +862,17 @@ async function downloadMonthlyPdf() {
           </thead>
           <tbody>
             ${group.rows.map(row => `
-              <tr>
+              <tr class="row-${row.rowType || 'normal'}">
                 <td>${safeText(row.date || '-')}</td>
                 <td>${safeText(row.clockInTime || '--')}</td>
                 <td>${safeText(row.clockOutTime || '--')}</td>
                 <td>${safeText(row.workHours || '0 小時 0 分')}</td>
                 <td>${safeText(row.status || '-')}</td>
-                <td>${safeText(row.repairNote || '-')}</td>
+                <td>
+  ${row.repairNote
+    ? `<span class="tag tag-repair">${safeText(row.repairNote)}</span>`
+    : '-'}
+</td>
                 <td>${safeText(row.leaveNote || '-')}</td>
                 <td>${safeText(row.reviewNote || '-')}</td>
               </tr>
@@ -948,6 +962,19 @@ tr:nth-child(even) td{
   font-weight:700;
 }
 
+.tag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tag-repair {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
 @media print{
   body{padding:10mm;}
 }
@@ -1014,7 +1041,7 @@ ${detailHtml || '<section class="employee-page"><h2>二、每日出勤明細</h2
       printWindow.print()
     }, 500)
 
-    message.value = '月報表已開啟，可另存 PDF'
+    message.value = '月報表已開啟'
   } catch (error) {
     message.value = error.message || '月報表產生失敗'
   }
@@ -1042,5 +1069,40 @@ onMounted(async () => {
   padding: 0.75rem;
   font-size: 0.92rem;
   outline: none;
+}
+/* 正常 */
+.row-normal td {
+  background-color: #f8fbfe;
+}
+
+/* 補卡（藍） */
+.row-repair td {
+  background-color: #e6f2ff;
+}
+
+/* 請假（紫） */
+.row-leave td {
+  background-color: #f3e8ff;
+}
+
+/* 異常（紅） */
+.row-abnormal td {
+  background-color: #ffeaea;
+}
+
+/* 狀態文字加強 */
+.row-repair td:nth-child(5) {
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.row-leave td:nth-child(5) {
+  color: #7c3aed;
+  font-weight: 700;
+}
+
+.row-abnormal td:nth-child(5) {
+  color: #dc2626;
+  font-weight: 700;
 }
 </style>
